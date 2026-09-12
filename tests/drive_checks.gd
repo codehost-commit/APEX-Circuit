@@ -16,6 +16,10 @@ func _run() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--case="):
 			_case = argument.trim_prefix("--case=")
+	if _case not in ["all", "basics", "rules", "flow", "lap", "field", "fieldquick", "race", "race_full"]:
+		push_error("Unknown drive-check case: " + _case)
+		get_tree().quit(2)
+		return
 	game = load("res://scenes/main.tscn").instantiate()
 	add_child(game)
 	# Automated hot laps never replace the player's saved personal best.
@@ -34,6 +38,10 @@ func _run() -> void:
 		await field_checks()
 	if _case in ["all", "rules"]:
 		rule_checks()
+	if _case in ["all", "flow"]:
+		session_flow_checks()
+		# Flush pending body pose resets before destroying the Jolt world.
+		await frames(3)
 	if _case in ["race", "race_full"]:
 		await race_checks()
 	results.failures = failures
@@ -44,6 +52,59 @@ func check(condition: bool, label: String) -> void:
 	print("PASS " if condition else "FAIL ", label)
 	if not condition:
 		failures.append(label)
+
+func session_flow_checks() -> void:
+	var director := game.race_director as RaceDirector
+	director.set_physics_process(false)
+	game._return_to_menu()
+	check(GameState.mode == GameState.Mode.MENU and game.menu.visible and not game.hud.visible, "Menu restores the floating overlay and hides the racing HUD")
+	game.menu.time_trial_requested.emit()
+	check(GameState.mode == GameState.Mode.TIME_TRIAL and not game.menu.visible and not car.automated_input and not game.drivers[0].enabled, "Time Trial button transfers control from menu AI to the player")
+	var isolated := true
+	for competitor: RaycastFormulaCar in game.all_cars:
+		if competitor != car:
+			isolated = isolated and not competitor.visible and competitor.freeze and competitor.collision_layer == 0
+	check(isolated, "Time Trial removes every competitor from rendering and collision")
+	for mode in 3:
+		car.set_camera_mode(mode)
+		game.hud._process(0.0)
+		check(game.hud.cockpit.visible == (mode == 2) and game.hud._instruments.visible == (mode != 2), "Camera %d has exactly one instrument display" % mode)
+	GameState.set_paused(true)
+	game.hud.restart_requested.emit()
+	check(not get_tree().paused and GameState.mode == GameState.Mode.TIME_TRIAL and car.lap == 0, "Restart resumes and resets the current Time Trial mode")
+	director.end_time_trial()
+	game.hud._process(0.0)
+	check(GameState.mode == GameState.Mode.RESULTS and game.hud._results.visible, "Ending Time Trial displays session results")
+	game.hud.menu_requested.emit()
+	var field_restored := true
+	for competitor: RaycastFormulaCar in game.all_cars:
+		field_restored = field_restored and competitor.visible and not competitor.freeze and competitor.collision_layer == 2
+	check(field_restored and game.menu.visible, "Returning from solo results restores all twelve physical menu cars")
+	game.menu.qualifying_requested.emit()
+	game.hud._process(0.0)
+	check(GameState.mode == GameState.Mode.QUALIFYING and game.hud._skip.visible and not game.hud._skip.disabled, "Qualifying offers skip before the player records any lap")
+	var rival: RaycastFormulaCar = game.all_cars[1]
+	director._status(rival).best_lap = 95.0
+	director._status(car).best_lap = 96.0
+	game.hud._skip.pressed.emit()
+	check(GameState.mode == GameState.Mode.RACE and director.grid_order[0] == rival and director.grid_order[1] == car, "Skip to grid orders cars by their valid qualifying bests")
+	game._start_qualifying()
+	director.race_time = RaceConfig.qualifying_duration
+	director._physics_process(1.0 / 120.0)
+	check(GameState.mode == GameState.Mode.RACE and game.active_session == "race", "Automatic qualifying expiry updates the active session to race")
+	game.hud.restart_requested.emit()
+	check(GameState.mode == GameState.Mode.RACE and not director.green, "Restart after automatic qualifying starts race lights, not another qualifying session")
+	game._return_to_menu()
+	var left_event := InputEventKey.new()
+	left_event.physical_keycode = KEY_A
+	var right_event := InputEventKey.new()
+	right_event.physical_keycode = KEY_D
+	check(InputMap.event_is_action(left_event, "steer_left") and not InputMap.event_is_action(left_event, "steer_right") and InputMap.event_is_action(right_event, "steer_right"), "Physical A and D bind to left and right, respectively")
+	var trigger := InputEventJoypadMotion.new()
+	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
+	trigger.axis_value = 1.0
+	check(InputMap.event_is_action(trigger, "throttle") and not InputMap.event_is_action(trigger, "brake"), "Right gamepad trigger is throttle, not brake")
+	results.session_flow = {"passed":failures.is_empty()}
 
 func frames(count: int) -> void:
 	for index in count:
@@ -270,11 +331,34 @@ func rule_checks() -> void:
 	rival.race_progress = car.race_progress + 30.0
 	car.speed_mps = 60.0
 	rival.speed_mps = 60.0
+	director.race_time = 10.0
+	var crossed_at := director._crossing_time(detection - 1.0, detection + 1.0, detection, 1.0 / 120.0)
+	director._status(rival).drs_crossings[1] = crossed_at - 0.5
 	director._update_drs(car, status, detection - 1.0, detection + 1.0)
 	director._update_drs(car, status, zone.x - 1.0, zone.x + 1.0)
 	check(car.drs_available, "Half-second gap at detection authorizes DRS at activation")
 	director._update_drs(car, status, zone.y - 1.0, zone.y + 1.0)
 	check(not car.drs_available, "DRS permission ends at the zone exit")
+	rival.speed_mps = 5.0
+	car.speed_mps = 100.0
+	check(is_equal_approx(director._detection_gap(car, 1, crossed_at), 0.5), "DRS uses detector timestamps, independent of subsequent speeds")
+	director._status(rival).drs_crossings[1] = crossed_at - 1.01
+	director._update_drs(car, status, detection - 1.0, detection + 1.0)
+	check(not bool(status.drs_eligible[1]), "A measured gap above one second denies race DRS")
+	director._status(rival).drs_crossings[1] = crossed_at + 0.01
+	check(not is_finite(director._detection_gap(car, 1, crossed_at)), "A trailing car crossing later cannot grant DRS")
+	# The follower is first in the car array. Both cross within this physics
+	# tick, so eligibility must use the prepass, not update iteration order.
+	for competitor: RaycastFormulaCar in [car, rival]:
+		var offset := 0.5 if competitor == car else 1.5
+		competitor.global_transform = game.track.nearest_safe_pose(game.track.sample_at_distance(detection + offset).position)
+		director._status(competitor).last_progress = detection + offset - 2.0
+		competitor.speed_mps = 60.0
+	director._record_drs_detections(1.0 / 120.0)
+	var follower_crossing := float(status.drs_crossings[1])
+	check(absf(director._detection_gap(car, 1, follower_crossing) - 1.0 / 240.0) < 0.00002, "Same-tick detector timestamps are interpolated independently of car order")
+	director._clear_drs_detection(car, status)
+	check(not bool(status.drs_eligible[1]) and not is_finite(float(status.drs_crossings[1])) and not car.drs_available, "Recovery clears stale DRS crossings and eligibility")
 	car.global_transform = game.track.nearest_safe_pose(game.track.sample_at_distance(40.0).position)
 	rival.global_transform = car.global_transform
 	rival.global_position += -car.global_basis.z * 3.0

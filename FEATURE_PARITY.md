@@ -11,7 +11,7 @@ The full prompt outranks the artifact plan. The later request to copy ZIP handli
 | Time Trial | Unlimited attempts, ordered gates, invalid laps, three interpolated sectors, session/PB times, saved ghost and live delta |
 | Weekend | Physical five-minute qualifying, best valid laps determine grid, skip, twelve cars, five-light launch, jump starts, five-lap default race, results |
 | Race control | Checkpoints, all-four-off limits, deferred fault penalties for any driver, retirement, checkpoint recovery, penalty-adjusted classification |
-| Gaps | Interpolated passage-time history. DRS detection still estimates its one-second gap from distance/reference speed |
+| Gaps | Interpolated passage-time history; DRS uses actual interpolated detector timestamps, including crossings in the same physics tick |
 | AI | Same physical car, curvature/braking profile, pure pursuit, smoothed tactics, final-target alongside corridor, track-space following around corners, pace variation |
 | UI | Live RPM/gear/speed/input/tyre telemetry, sectors, standings, minimap, DRS, messages, pause/settings/results; cockpit-only wheel readout |
 | Cameras/menu | Collision-swept chase, T-cam, driver-eye cutaway; floating overlay, physical flying field, low/aerial shots, fades and proximity shake |

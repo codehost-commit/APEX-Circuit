@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$Godot,
-    [string[]]$Cases = @('basics', 'rules', 'lap', 'field', 'race')
+    [ValidateSet('basics', 'rules', 'flow', 'lap', 'field', 'fieldquick', 'race', 'race_full')]
+    [string[]]$Cases = @('basics', 'rules', 'flow', 'lap', 'field', 'race')
 )
 $ErrorActionPreference = 'Stop'
 $apexProject = Split-Path -Parent $PSScriptRoot

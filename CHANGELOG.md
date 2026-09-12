@@ -4,6 +4,8 @@
 
 ### Prototype-based revamp
 
+- Replaced DRS distance/speed estimates with interpolated physical detection-line timestamps, including same-tick ordering and recovery reset tests.
+- Validated a complete twelve-car five-lap race; added session/button/camera/input regression checks and a Windows-compatible test-runner command.
 - Rebuilt vehicle around ZIP SI-unit handling, correct A/D, seven gears, RPM, suspension, slippery surfaces, DRS, braking/reverse and damage.
 - Copied original 60-point 4.24 km circuit, wide kerbs and sand; rebuilt collision, physical gantry, paddock, stands, barriers and terrain.
 - Added real Time Trial/PB/ghost, ordered checkpoint/sector timing, physical qualifying/grid, deferred penalties, live passage-time gaps and results.

@@ -141,6 +141,7 @@ func reset_player() -> void:
 	car.race_enabled = green
 	status.last_progress = safe_distance
 	status.stuck_time = 0.0
+	_clear_drs_detection(car, status)
 	_invalidate(car, status, "Reset to checkpoint")
 	if GameState.mode == GameState.Mode.RACE:
 		_apply_penalty(car, RaceConfig.recovery_penalty_seconds, "checkpoint recovery")
@@ -203,6 +204,9 @@ func _update_start_lights(delta: float) -> void:
 		EventBus.race_message.emit("LIGHTS OUT", "Go, go, go!", 1.4)
 
 func _update_car_progress(delta: float) -> void:
+	# Record every detector crossing before evaluating any driver. Otherwise
+	# cars crossing in the same physics tick depend on their scene-tree order.
+	_record_drs_detections(delta)
 	for car in cars:
 		if not car.visible or car.finished:
 			continue
@@ -236,7 +240,7 @@ func _update_car_progress(delta: float) -> void:
 					else:
 						_invalidate(car, status, "Missed checkpoint")
 						_begin_lap(status, crossed_at)
-			_update_drs(car, status, previous, progress)
+			_update_drs(car, status, previous, progress, delta)
 		elif travelled < -0.2:
 			status.wrong_way_time += delta
 		if float(status.wrong_way_time) > 2.0 and car.player_controlled:
@@ -347,13 +351,32 @@ func _invalidate(car: RaycastFormulaCar, status: Dictionary, reason: String) -> 
 		if car.player_controlled:
 			EventBus.race_message.emit("LAP INVALID", "%s - complete the lap to start a new attempt." % reason, 3.0)
 
-func _update_drs(car: RaycastFormulaCar, status: Dictionary, previous: float, progress: float) -> void:
+func _record_drs_detections(delta: float) -> void:
+	for car in cars:
+		if not car.visible or car.finished:
+			continue
+		var status := _status(car)
+		var projection := circuit.progress_at(car.global_position)
+		var progress := float(projection.progress)
+		var previous := float(status.last_progress)
+		var step := wrapf(progress - previous, -circuit.total_length * 0.5, circuit.total_length * 0.5)
+		if step <= 0.0 or step >= maxf(15.0, car.speed_mps * delta * 3.0):
+			continue
+		if absf(float(projection.offset)) > RaceConfig.track_width * 0.5 + RaceConfig.kerb_width + 2.0:
+			continue
+		for index in circuit.drs_detection_distances.size():
+			var detection := float(circuit.drs_detection_distances[index])
+			if _crossed(previous, progress, detection):
+				status.drs_crossings[index] = _crossing_time(previous, progress, detection, delta)
+
+func _update_drs(car: RaycastFormulaCar, status: Dictionary, previous: float, progress: float, delta := 1.0 / 120.0) -> void:
 	var available := false
 	for index in circuit.drs_zones.size():
 		var zone: Vector2 = circuit.drs_zones[index]
 		var detection := float(circuit.drs_detection_distances[index])
 		if _crossed(previous, progress, detection):
-			status.drs_eligible[index] = _nearest_ahead_seconds(car) <= RaceConfig.drs_gap_seconds
+			var crossed_at := _crossing_time(previous, progress, detection, delta)
+			status.drs_eligible[index] = _detection_gap(car, index, crossed_at) <= RaceConfig.drs_gap_seconds
 		if progress >= zone.x and progress <= zone.y:
 			available = GameState.mode != GameState.Mode.RACE or bool(status.drs_eligible[index])
 	if car.drs_available != available:
@@ -362,15 +385,21 @@ func _update_drs(car: RaycastFormulaCar, status: Dictionary, previous: float, pr
 	if not available or car.brake_input > 0.05:
 		car.drs_open = false
 
-func _nearest_ahead_seconds(car: RaycastFormulaCar) -> float:
+func _detection_gap(car: RaycastFormulaCar, zone_index: int, crossed_at: float) -> float:
 	var closest := INF
 	for other in cars:
 		if other == car or other.finished or not other.visible:
 			continue
-		var gap := fposmod(other.race_progress - car.race_progress, circuit.total_length)
-		if gap > 1.0 and gap < circuit.total_length * 0.45:
-			closest = minf(closest, gap / maxf(18.0, (car.speed_mps + other.speed_mps) * 0.5))
+		var gap := crossed_at - float(_status(other).drs_crossings[zone_index])
+		if gap >= 0.0:
+			closest = minf(closest, gap)
 	return closest
+
+func _clear_drs_detection(car: RaycastFormulaCar, status: Dictionary) -> void:
+	status.drs_crossings = [-INF, -INF, -INF]
+	status.drs_eligible = [false, false, false]
+	car.drs_available = false
+	car.drs_open = false
 
 func _update_recovery(car: RaycastFormulaCar, status: Dictionary, delta: float) -> void:
 	if car.speed_mps < 1.0 and race_time > 10.0:
@@ -382,6 +411,7 @@ func _update_recovery(car: RaycastFormulaCar, status: Dictionary, delta: float) 
 		car.reset_to_pose(_sample_pose(circuit.sample_at_distance(safe_distance)))
 		status.last_progress = safe_distance
 		status.stuck_time = 0.0
+		_clear_drs_detection(car, status)
 		_invalidate(car, status, "Recovery")
 		if GameState.mode == GameState.Mode.RACE:
 			_apply_penalty(car, 10.0, "recovery")
@@ -546,6 +576,8 @@ func _status(car: RaycastFormulaCar) -> Dictionary:
 	if not statuses[car.get_instance_id()].has("timeline"):
 		statuses[car.get_instance_id()].timeline = []
 		statuses[car.get_instance_id()].next_timing_sample = 0.0
+	if not statuses[car.get_instance_id()].has("drs_crossings"):
+		statuses[car.get_instance_id()].drs_crossings = [-INF, -INF, -INF]
 	return statuses[car.get_instance_id()]
 
 func _sample_pose(sample: Dictionary) -> Transform3D:

@@ -32,4 +32,4 @@ Large model/HDR binaries use Git LFS. Install Git LFS and run `git lfs pull` aft
 
 ## Automated checks
 
-Run `tests/run_checks.ps1 -Godot <path-to-godot-console.exe>` from PowerShell. The suite checks geometry, physical handling, rules, clean laps, menu-field recovery and a two-lap twelve-car grid-to-results race. It writes only ignored test artifacts, not the player's PB. Full details and direct commands are in [VALIDATION.md](VALIDATION.md).
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests/run_checks.ps1 -Godot <path-to-godot-console.exe>` from the project directory. This bypass applies to that process only; it does not change the machine's execution policy. The suite checks geometry, physical handling, rules, menu/session transitions, clean laps, menu-field recovery and a two-lap twelve-car grid-to-results race. Add `-Cases race_full` for the longer five-lap soak. Tests write only ignored artifacts, not the player's PB. Full details and direct commands are in [VALIDATION.md](VALIDATION.md).
