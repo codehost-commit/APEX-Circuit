@@ -48,7 +48,6 @@ func _ready() -> void:
 	center_of_mass = tuning.center_of_mass
 	linear_damp = 0.0
 	angular_damp = 0.0
-	continuous_cd = RigidBody3D.CCD_MODE_CAST_RAY
 	contact_monitor = true
 	max_contacts_reported = 8
 	_add_body_collision()
@@ -219,16 +218,16 @@ func _update_wheel(wheel: Dictionary, state: PhysicsDirectBodyState3D, delta: fl
 	var normal_force := maxf(0.0, suspension_force + aero_load)
 	wheel.normal_force = normal_force
 	var load_factor := pow(maxf(normal_force / maxf(static_load, 1.0), 0.12), tuning.load_sensitivity - 1.0)
-	var grip_limit := tuning.tyre_mu * surface.grip * normal_force * load_factor
+	var grip_limit: float = tuning.tyre_mu * float(surface.grip) * normal_force * load_factor
 	var slip_ratio := (float(wheel.omega) * tuning.wheel_radius - forward_speed) / maxf(absf(forward_speed), 4.0)
 	var slip_angle := atan2(lateral_speed, maxf(absf(forward_speed), 3.0))
-	var long_demand := _tyre_response(slip_ratio, tuning.longitudinal_peak_slip) * grip_limit
-	var lat_demand := -_tyre_response(slip_angle, tuning.lateral_peak_angle) * grip_limit
+	var long_demand: float = _tyre_response(slip_ratio, tuning.longitudinal_peak_slip) * grip_limit
+	var lat_demand: float = -_tyre_response(slip_angle, tuning.lateral_peak_angle) * grip_limit
 	var brake_torque := brake_input * tuning.max_brake_torque * (tuning.brake_front_bias if wheel.front else 1.0 - tuning.brake_front_bias)
 	if tuning.abs_enabled and absf(slip_ratio) > tuning.longitudinal_peak_slip:
 		brake_torque *= 0.58
 	var drive_torque := _drive_torque_for(wheel)
-	var tyre_torque := -long_demand * tuning.wheel_radius
+	var tyre_torque: float = -long_demand * tuning.wheel_radius
 	var brake_direction := signf(float(wheel.omega)) if absf(float(wheel.omega)) > 0.1 else signf(forward_speed)
 	wheel.omega += (drive_torque - brake_torque * brake_direction + tyre_torque) / tuning.wheel_inertia * delta
 	var combined := Vector2(long_demand, lat_demand)
@@ -337,6 +336,15 @@ func _set_camera_state(cockpit: bool) -> void:
 
 func is_cockpit_camera() -> bool:
 	return _cockpit_active
+
+func all_wheels_legal() -> bool:
+	if track == null:
+		return true
+	for wheel in _wheels:
+		var ray: RayCast3D = wheel.ray
+		if not track.is_legal(ray.global_position):
+			return false
+	return true
 
 func reset_to_pose(pose: Transform3D) -> void:
 	global_transform = pose
