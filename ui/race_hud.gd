@@ -18,6 +18,9 @@ var _sector_labels: Array[Label] = []
 var _standings: VBoxContainer
 var _standing_rows: Array[Label] = []
 var _message: Label
+var _announcement: PanelContainer
+var _announcement_title: Label
+var _dynamics: TelemetryCircle
 var _light_label: Label
 var _instruments: RaceInstruments
 var _pause: PanelContainer
@@ -64,7 +67,7 @@ func _process(delta: float) -> void:
 		return
 	if not GameState.paused:
 		_message_timer = maxf(0, _message_timer - delta)
-	_message.visible = _message_timer > 0
+	_announcement.visible = _message_timer > 0
 	_pause.visible = GameState.paused
 	var status := director.get_player_status()
 	if status.is_empty():
@@ -87,7 +90,7 @@ func _process(delta: float) -> void:
 	_lap_clock.add_theme_color_override("font_color", ApexStyle.WHITE if bool(status.lap_valid) else ApexStyle.RED)
 	_timing.text = "LAST   %s%s\nBEST   %s\nPB       %s" % [RaceDirector.format_time(float(status.last_lap)), "  INVALID" if not bool(status.last_lap_valid) else "", RaceDirector.format_time(float(status.best_lap)), RaceDirector.format_time(director.personal_best)]
 	var lap_delta := float(status.delta)
-	_delta_label.text = "%+.3f" % lap_delta if is_finite(lap_delta) else "DELTA  --.---"
+	_delta_label.text = "DELTA  %+.3f" % lap_delta if is_finite(lap_delta) else "DELTA  --.---"
 	_delta_label.add_theme_color_override("font_color", ApexStyle.MUTED if not is_finite(lap_delta) else (ApexStyle.ACCENT if lap_delta <= 0 else ApexStyle.RED))
 	for index in 3:
 		var current := float(status.sectors[index])
@@ -97,6 +100,8 @@ func _process(delta: float) -> void:
 		if is_finite(current):
 			color = ApexStyle.RED if not bool(status.sector_valid[index]) else (Color("#bba2ff") if bool(status.sector_pb[index]) else ApexStyle.ACCENT)
 		_sector_labels[index].add_theme_color_override("font_color", color)
+	_dynamics.car = player
+	_dynamics.visible = mode != GameState.Mode.RESULTS
 	_instruments.car = player
 	_instruments.visible = not player.is_cockpit_camera() and mode != GameState.Mode.RESULTS
 	cockpit.car = player
@@ -120,7 +125,7 @@ func _build_layout() -> void:
 	add_child(_root)
 	var timing_panel := PanelContainer.new()
 	timing_panel.position = Vector2(34, 32)
-	timing_panel.size = Vector2(415, 305)
+	timing_panel.size = Vector2(415, 356)
 	timing_panel.add_theme_stylebox_override("panel", ApexStyle.panel(0.83))
 	_root.add_child(timing_panel)
 	var timing_box := VBoxContainer.new()
@@ -139,19 +144,25 @@ func _build_layout() -> void:
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		sectors.add_child(label)
 		_sector_labels.append(label)
-	_delta_label = ApexStyle.label("DELTA  --.---", 30)
-	_delta_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_delta_label.position = Vector2(-150, 32)
-	_delta_label.size.x = 300
-	_delta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_root.add_child(_delta_label)
-	_message = ApexStyle.label("", 22, Color("#fff0c7"))
-	_message.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_message.position = Vector2(-470, 89)
-	_message.size = Vector2(940, 76)
-	_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_message.add_theme_constant_override("outline_size", 7)
-	_root.add_child(_message)
+	_delta_label = ApexStyle.label("DELTA  --.---", 28)
+	timing_box.add_child(_delta_label)
+	_announcement = PanelContainer.new()
+	_root.add_child(_announcement)
+	_announcement.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_announcement.position = Vector2(-420, 32)
+	_announcement.custom_minimum_size = Vector2(790, 105)
+	_announcement.size.x = 790
+	var announcement_style := ApexStyle.panel(0.96, ApexStyle.ACCENT)
+	announcement_style.border_width_left = 5
+	_announcement.add_theme_stylebox_override("panel", announcement_style)
+	var announcement_box := VBoxContainer.new()
+	announcement_box.add_theme_constant_override("separation", 6)
+	_announcement.add_child(announcement_box)
+	_announcement_title = ApexStyle.label("RACE CONTROL", 22, ApexStyle.ACCENT)
+	announcement_box.add_child(_announcement_title)
+	_message = ApexStyle.label("", 21, ApexStyle.WHITE)
+	_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	announcement_box.add_child(_message)
 	_light_label = ApexStyle.label("", 54, ApexStyle.RED)
 	_light_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_light_label.position = Vector2(-250, 188)
@@ -182,9 +193,14 @@ func _build_layout() -> void:
 	_root.add_child(minimap)
 	_instruments = RaceInstruments.new()
 	_instruments.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	_instruments.position = Vector2(-425, -420)
-	_instruments.size = Vector2(390, 386)
+	_instruments.position = Vector2(-425, -343)
+	_instruments.size = Vector2(390, 309)
 	_root.add_child(_instruments)
+	_dynamics = TelemetryCircle.new()
+	_root.add_child(_dynamics)
+	_dynamics.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_dynamics.position = Vector2(-425, -663)
+	_dynamics.size = Vector2(390, 310)
 	cockpit = CockpitDisplay.new()
 	cockpit.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	cockpit.position = Vector2(-260, -255)
@@ -310,7 +326,8 @@ func _update_results(rows: Array, director: RaceDirector, status: Dictionary) ->
 	_results_text.text = "\n".join(lines)
 
 func _show_message(title: String, detail: String, duration: float) -> void:
-	_message.text = "%s\n%s" % [title, detail]
+	_announcement_title.text = "RACE CONTROL  /  " + title
+	_message.text = detail
 	_message_timer = duration
 
 func _on_lights(count: int, extinguished: bool) -> void:

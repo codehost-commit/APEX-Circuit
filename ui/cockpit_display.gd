@@ -24,7 +24,7 @@ func _draw() -> void:
 	draw_rect(Rect2(-91,-70,182,109), Color("#59777b"), false, 2)
 	var font := get_theme_default_font()
 	draw_string(font, Vector2(-17,-6), "R" if car.reverse_engaged else str(car.gear), HORIZONTAL_ALIGNMENT_LEFT, -1, 53, ApexStyle.WHITE)
-	draw_string(font, Vector2(-66,26), "%03d KM/H" % int(car.speed_mps * 3.6), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, ApexStyle.WHITE)
+	draw_string(font, Vector2(-66,26), "%03d %s" % [ApexStyle.speed_value(car.speed_mps), ApexStyle.speed_suffix()], HORIZONTAL_ALIGNMENT_LEFT, -1, 19, ApexStyle.WHITE)
 	draw_string(font, Vector2(-76,-51), "%05d RPM" % int(car.rpm), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, ApexStyle.ACCENT)
 	var fraction := clampf((car.rpm - car.tuning.idle_rpm) / (car.tuning.rev_limit_rpm - car.tuning.idle_rpm), 0, 1)
 	for index in 15:

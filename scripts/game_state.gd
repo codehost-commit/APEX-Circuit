@@ -14,6 +14,9 @@ var paused := false
 var session_mode: Mode = Mode.RACE
 var ghost_enabled := true
 var telemetry_enabled := true
+var speed_unit := "kmh"
+var graphics_quality := 1
+var mouse_look := true
 
 func set_paused(value: bool) -> void:
 	paused = value

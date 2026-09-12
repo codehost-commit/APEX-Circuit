@@ -70,6 +70,26 @@ var _pending_pose := false
 var _reset_transform := Transform3D.IDENTITY
 var _reset_velocity := Vector3.ZERO
 var _contact_cooldown := 0.0
+var _previous_velocity := Vector3.ZERO
+var _acceleration_initialized := false
+var _load_transfer_g := 0.0
+var _mouse_active := true
+var _look_target := Vector2.ZERO
+
+func _input(event: InputEvent) -> void:
+	if not player_controlled:
+		return
+	if event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.2):
+		_mouse_active = false
+		_look_target = Vector2.ZERO
+	elif event is InputEventKey:
+		_mouse_active = true
+	elif event is InputEventMouseMotion and event.relative.length_squared() > 0.01:
+		_mouse_active = true
+		if _camera_mode == 2 and not GameState.paused and GameState.mode != GameState.Mode.MENU:
+			var bounds := get_viewport().get_visible_rect().size
+			_look_target = (event.position / bounds * 2.0 - Vector2.ONE).clamp(Vector2(-1,-1),Vector2.ONE)
+
 
 func _ready() -> void:
 	tuning = tuning.duplicate()
@@ -218,6 +238,13 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	var velocity := state.linear_velocity
 	speed_mps = Vector2(velocity.x, velocity.z).length()
 	forward_speed = velocity.dot(forward)
+	if _acceleration_initialized:
+		var acceleration := (velocity - _previous_velocity) / maxf(delta, 0.0001)
+		var blend := 1.0 - exp(-18.0 * delta)
+		longitudinal_g = lerpf(longitudinal_g, acceleration.dot(forward) / GRAVITY, blend)
+		lateral_g = lerpf(lateral_g, acceleration.dot(right) / GRAVITY, blend)
+	_previous_velocity = velocity
+	_acceleration_initialized = true
 	var lateral_speed := velocity.dot(right)
 	var yaw_rate := -state.angular_velocity.dot(up)
 	_shift_cut = maxf(0.0, _shift_cut - delta)
@@ -235,7 +262,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	var rear_distance := tuning.wheelbase - front_distance
 	var static_front := mass * GRAVITY * rear_distance / tuning.wheelbase
 	var static_rear := mass * GRAVITY - static_front
-	var transfer := mass * longitudinal_g * GRAVITY * tuning.center_of_mass.y / tuning.wheelbase
+	var transfer := mass * _load_transfer_g * GRAVITY * tuning.center_of_mass.y / tuning.wheelbase
 	var front_load := maxf(800.0, static_front + front_aero - transfer)
 	var rear_load := maxf(800.0, static_rear + rear_aero + transfer)
 	var front_grip := (float(surface_grips.get("FL", 1.0)) + float(surface_grips.get("FR", 1.0))) * 0.5
@@ -300,8 +327,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		state.linear_velocity.x *= damping
 		state.linear_velocity.z *= damping
 		state.angular_velocity.y *= damping
-	longitudinal_g = lerpf(longitudinal_g, longitudinal_force / (mass * GRAVITY), 1.0 - exp(-10.0 * delta))
-	lateral_g = lerpf(lateral_g, lateral_force / (mass * GRAVITY), 1.0 - exp(-10.0 * delta))
+	_load_transfer_g = lerpf(_load_transfer_g, longitudinal_force / (mass * GRAVITY), 1.0 - exp(-10.0 * delta))
 	slip_angle = atan2(lateral_speed, maxf(1.5, absf(forward_speed)))
 	front_slip = clampf(absf(front_alpha) / 0.20, 0.0, 1.6)
 	rear_slip = clampf(absf(rear_alpha) / 0.22, 0.0, 1.6)
@@ -528,6 +554,9 @@ func set_camera_mode(mode: int) -> void:
 func _update_camera(delta: float) -> void:
 	if not player_controlled or _chase_camera == null:
 		return
+	var look := _look_target if _mouse_active and GameState.mouse_look and _camera_mode == 2 else Vector2.ZERO
+	_cockpit_camera.rotation.y = lerp_angle(_cockpit_camera.rotation.y, -look.x * 0.85, 1.0 - exp(-8.0 * delta))
+	_cockpit_camera.rotation.x = lerp_angle(_cockpit_camera.rotation.x, deg_to_rad(-1.5) - look.y * 0.38, 1.0 - exp(-8.0 * delta))
 	var forward := -global_transform.basis.z
 	forward.y = 0.0
 	forward = forward.normalized()
@@ -573,6 +602,9 @@ func all_wheels_off_track() -> bool:
 	return true
 
 func reset_to_pose(pose: Transform3D, repair_damage: bool = false) -> void:
+	_acceleration_initialized = false
+	_load_transfer_g = 0.0
+	ai_command = {"throttle": 0.0, "brake": 0.0, "steer": 0.0, "drs": false}
 	_reset_transform = pose
 	_reset_velocity = Vector3.ZERO
 	_pending_pose = true
@@ -610,12 +642,16 @@ func reset_to_pose(pose: Transform3D, repair_damage: bool = false) -> void:
 		wheel.slip_ratio = 0.0
 		wheel.slip_angle = 0.0
 		wheel.normal_force = 0.0
+		wheel.grounded = false
+		if wheel.dust != null:
+			wheel.dust.emitting = false
 	if repair_damage:
 		damage = 0.0
 	finished = false
 
 func set_flying_speed(speed: float) -> void:
 	var velocity := -global_transform.basis.z * speed
+	_acceleration_initialized = false
 	linear_velocity = velocity
 	_reset_velocity = velocity
 	speed_mps = absf(speed)
