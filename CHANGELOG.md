@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Prototype-based revamp
+
+- Rebuilt vehicle around ZIP SI-unit handling, correct A/D, seven gears, RPM, suspension, slippery surfaces, DRS, braking/reverse and damage.
+- Copied original 60-point 4.24 km circuit, wide kerbs and sand; rebuilt collision, physical gantry, paddock, stands, barriers and terrain.
+- Added real Time Trial/PB/ghost, ordered checkpoint/sector timing, physical qualifying/grid, deferred penalties, live passage-time gaps and results.
+- Rebuilt HUD/cockpit/menu/cameras, input/controller mapping, section-coach capture and experimental pace trainer.
+- Imported CC0 PBR maps; downloaded free CC0 car plus unbranded texture for art replacement. Fixed procedural body visibility and batched static detail.
+- Added physical handling/lap/field/race tests and GPU captures. VALIDATION.md records numbers; FEATURE_PARITY.md records remaining gaps.
+
+### Historical baseline scaffold (superseded)
+
+The old phase list below records scaffold additions, not verified acceptance of the full prompt or release readiness. The revamp and actual validation supersede those claims.
+
 - Phase 7: CC0 HDRI world lighting, ACES/glow/SSAO rendering defaults, optional SSR/SDFGI switches, surface drag, and MultiMesh/visibility-range trackside LOD pass for the 30 FPS target.
 - Phase 6: cinematic menu over the live AI field, alternating kerb/aerial drone shots with fade cuts, and Qualifying/Race/Quit flow into the real session.
 - Phase 5: live HUD, timing/leaderboard/minimap, penalty and incident messages, start lights, results panel, plus cockpit-only steering-wheel/shift-LED display.

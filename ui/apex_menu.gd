@@ -3,70 +3,114 @@ extends CanvasLayer
 
 signal qualifying_requested
 signal race_requested
+signal time_trial_requested
 signal quit_requested
+
+var _root: Control
+var _floating: VBoxContainer
+var _overlay: PanelContainer
+var _elapsed := 0.0
+var _live: Label
 
 func _ready() -> void:
 	layer = 5
-	var root := Control.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(root)
+	ApexStyle.load_settings()
+	_root = Control.new()
+	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_root)
 	var shade := ColorRect.new()
-	shade.color = Color(0.008, 0.015, 0.024, 0.60)
-	shade.position = Vector2(0.0, 0.0)
-	shade.size = Vector2(650.0, 1080.0)
-	root.add_child(shade)
-	var title := Label.new()
-	title.text = "APEX\nCIRCUIT"
-	title.position = Vector2(54.0, 58.0)
-	title.add_theme_font_size_override("font_size", 62)
-	title.add_theme_color_override("font_color", Color("#f3f7f5"))
-	title.add_theme_constant_override("outline_size", 9)
-	title.add_theme_color_override("font_outline_color", Color("#0a121a"))
-	root.add_child(title)
-	var subtitle := Label.new()
-	subtitle.text = "ORIGINAL OPEN-WHEEL SIMULATION"
-	subtitle.position = Vector2(60.0, 210.0)
-	subtitle.add_theme_font_size_override("font_size", 16)
-	subtitle.add_theme_color_override("font_color", Color("#79c7e7"))
-	root.add_child(subtitle)
-	var qualify := _button("QUALIFYING", Vector2(60.0, 320.0))
-	qualify.pressed.connect(func() -> void: qualifying_requested.emit())
-	root.add_child(qualify)
-	var race := _button("RACE  ·  SKIP QUALIFYING", Vector2(60.0, 395.0))
-	race.pressed.connect(func() -> void: race_requested.emit())
-	root.add_child(race)
-	var quit := _button("QUIT", Vector2(60.0, 470.0))
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shader := Shader.new()
+	shader.code = "shader_type canvas_item; void fragment(){ float shade = mix(0.88, 0.0, smoothstep(0.04, 0.68, UV.x)); COLOR = vec4(0.018, 0.031, 0.038, shade); }"
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	shade.material = material
+	_root.add_child(shade)
+	_floating = VBoxContainer.new()
+	_floating.position = Vector2(94, 118)
+	_floating.size.x = 505
+	_floating.add_theme_constant_override("separation", 15)
+	_root.add_child(_floating)
+	_floating.add_child(ApexStyle.label("A P E X   /   M O T O R S P O R T", 19, ApexStyle.ACCENT))
+	var title := ApexStyle.label("APEX\nCIRCUIT", 103)
+	title.add_theme_constant_override("line_spacing", -23)
+	_floating.add_child(title)
+	_floating.add_child(ApexStyle.label("CHASE THE NEXT TENTH.", 24, ApexStyle.MUTED))
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 35
+	_floating.add_child(gap)
+	_add_button("01     TIME TRIAL", func() -> void: time_trial_requested.emit(), true)
+	_add_button("02     RACE WEEKEND", func() -> void: qualifying_requested.emit())
+	_add_button("03     QUICK RACE", func() -> void: race_requested.emit())
+	_add_button("04     SETTINGS & CONTROLS", _show_settings)
+	var bottom := HBoxContainer.new()
+	bottom.add_theme_constant_override("separation", 14)
+	_floating.add_child(bottom)
+	var credits := ApexStyle.button("CREDITS")
+	credits.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	credits.pressed.connect(_show_credits)
+	bottom.add_child(credits)
+	var quit := ApexStyle.button("QUIT")
+	quit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	quit.pressed.connect(func() -> void: quit_requested.emit())
-	root.add_child(quit)
-	var help := Label.new()
-	help.text = "WASD / ARROWS  DRIVE\nQ / E  SHIFT     F  DRS     C  CAMERA\nESC  PAUSE"
-	help.position = Vector2(60.0, 835.0)
-	help.add_theme_font_size_override("font_size", 15)
-	help.add_theme_color_override("font_color", Color("#b4c2ca"))
-	root.add_child(help)
+	bottom.add_child(quit)
+	var footer := ApexStyle.label("ORIGINAL CIRCUIT   /   12 DRIVERS   /   3 SECTORS", 17, ApexStyle.MUTED)
+	footer.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	footer.position = Vector2(96, -56)
+	_root.add_child(footer)
+	_live = ApexStyle.label("LIVE  /  FLYING LAPS", 19, ApexStyle.WHITE)
+	_live.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_live.position = Vector2(-440, 48)
+	_live.size.x = 350
+	_live.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_root.add_child(_live)
+	_overlay = PanelContainer.new()
+	_overlay.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_overlay.position = Vector2(-350, -430)
+	_overlay.size = Vector2(700, 860)
+	_overlay.add_theme_stylebox_override("panel", ApexStyle.panel(0.98))
+	_overlay.visible = false
+	_root.add_child(_overlay)
 
-func _button(text_value: String, position_value: Vector2) -> Button:
-	var button := Button.new()
-	button.text = text_value
-	button.position = position_value
-	button.size = Vector2(390.0, 58.0)
-	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	button.add_theme_font_size_override("font_size", 22)
-	button.add_theme_color_override("font_color", Color("#edf4f3"))
-	button.add_theme_color_override("font_hover_color", Color("#6fe3ff"))
-	button.add_theme_stylebox_override("normal", _style(Color(0.025, 0.06, 0.085, 0.76), Color("#42657a")))
-	button.add_theme_stylebox_override("hover", _style(Color(0.04, 0.12, 0.16, 0.92), Color("#75e2ff")))
-	button.add_theme_stylebox_override("pressed", _style(Color(0.02, 0.03, 0.05, 0.95), Color("#d8f6ff")))
-	return button
+func _process(delta: float) -> void:
+	if not visible:
+		return
+	_elapsed += delta
+	_floating.position.y = 118 + sin(_elapsed * 0.48) * 4.0
+	_live.modulate.a = 0.75 + 0.25 * sin(_elapsed * 1.5)
+	if Input.is_action_just_pressed("pause") and _overlay.visible:
+		_overlay.visible = false
 
-func _style(background: Color, border: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_color = border
-	style.set_border_width_all(1)
-	style.corner_radius_top_left = 5
-	style.corner_radius_top_right = 5
-	style.corner_radius_bottom_left = 5
-	style.corner_radius_bottom_right = 5
-	style.content_margin_left = 18.0
-	return style
+func _add_button(text: String, callback: Callable, primary := false) -> void:
+	var button := ApexStyle.button(text, primary)
+	button.pressed.connect(callback)
+	_floating.add_child(button)
+
+func _clear_overlay() -> void:
+	for child in _overlay.get_children():
+		_overlay.remove_child(child)
+		child.queue_free()
+	_overlay.visible = true
+
+func _show_settings() -> void:
+	_clear_overlay()
+	var content := ApexStyle.settings_content()
+	_overlay.add_child(content)
+	var close := ApexStyle.button("BACK", true)
+	close.pressed.connect(func() -> void: _overlay.visible = false)
+	content.add_child(close)
+
+func _show_credits() -> void:
+	_clear_overlay()
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 28)
+	_overlay.add_child(box)
+	box.add_child(ApexStyle.label("APEX CIRCUIT", 46))
+	box.add_child(ApexStyle.label("CREATED BY RAHUL", 25, ApexStyle.ACCENT))
+	var text := ApexStyle.label("Original Python prototype by Rahul, Claude and Codex.\nNative 3D reconstruction in Godot / Jolt.\n\nCC0 textures from Poly Haven:\nAsphalt Track / Dimitrios Savva\nGrass Ground / Charlotte Baglioni\nGravel Floor / Jenelle van Heerden & Matterfield\nHochsal Field / Adrian Kubasa (lighting reference)\n\nCar and circuit geometry generated for APEX Circuit.\nNo affiliation with any official racing championship.\nFull source links: assets/ATTRIBUTIONS.md", 21, ApexStyle.MUTED)
+	box.add_child(text)
+	var close := ApexStyle.button("BACK", true)
+	close.pressed.connect(func() -> void: _overlay.visible = false)
+	box.add_child(close)

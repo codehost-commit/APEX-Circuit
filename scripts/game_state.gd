@@ -1,7 +1,7 @@
 extends Node
 ## Session state deliberately stays tiny. Systems communicate through EventBus.
 
-enum Mode { MENU, QUALIFYING, RACE, RESULTS }
+enum Mode { MENU, QUALIFYING, RACE, RESULTS, TIME_TRIAL, GRID }
 enum StartState { IDLE, LIGHTS, GREEN, FINISHED }
 
 var mode: Mode = Mode.MENU
@@ -11,12 +11,19 @@ var player_car: Node3D
 var race_director: Node
 var elapsed_seconds := 0.0
 var paused := false
+var session_mode: Mode = Mode.RACE
+var ghost_enabled := true
+var telemetry_enabled := true
+
+func set_paused(value: bool) -> void:
+	paused = value
+	get_tree().paused = value
 
 func begin_race() -> void:
 	mode = Mode.RACE
 	start_state = StartState.LIGHTS
 	elapsed_seconds = 0.0
-	paused = false
+	set_paused(false)
 
 func finish_race() -> void:
 	mode = Mode.RESULTS
@@ -25,4 +32,4 @@ func finish_race() -> void:
 func reset_to_menu() -> void:
 	mode = Mode.MENU
 	start_state = StartState.IDLE
-	paused = false
+	set_paused(false)

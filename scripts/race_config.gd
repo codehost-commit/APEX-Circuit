@@ -15,7 +15,7 @@ extends Node
 @export var incident_delay_min := 15.0
 @export var incident_delay_max := 30.0
 @export var start_light_step_seconds := 0.85
-@export var qualifying_duration := 180.0
+@export var qualifying_duration := 300.0
 @export var qualifying_variance_low := 0.985
 @export var qualifying_variance_high := 1.025
 @export var ai_estimated_lap_speed := 56.0
@@ -41,8 +41,8 @@ extends Node
 @export_category("World")
 @export var gravity := 9.81
 @export var fixed_delta_hint := 0.0166667
-@export var track_width := 15.0
-@export var kerb_width := 2.2
+@export var track_width := 21.0
+@export var kerb_width := 7.84
 @export var preview_camera_cut_min := 15.0
 @export var preview_camera_cut_max := 29.0
 @export var menu_fade_seconds := 0.55
@@ -53,7 +53,7 @@ extends Node
 @export var menu_ai_count := 8
 @export var field_ai_count := 11
 @export var shadow_distance := 110.0
-@export var target_fps := 30
+@export var target_fps := 60
 @export var world_lod_distance := 145.0
 @export var world_lod_fade_distance := 24.0
 @export var trackside_tree_count := 72
@@ -61,16 +61,16 @@ extends Node
 @export var enable_sdfgi := false
 
 @export_category("AI")
-@export var ai_profile_samples := 240
-@export var ai_top_speed := 91.5
+@export var ai_profile_samples := 640
+@export var ai_top_speed := 101.0
 @export var ai_initial_corner_speed := 35.0
 @export var ai_min_corner_speed := 12.0
 @export var ai_corner_iterations := 4
 @export var ai_profile_relaxation_passes := 4
 @export var ai_straight_curvature := 0.001
-@export var ai_lateral_margin := 0.84
-@export var ai_braking_accel := 28.0
-@export var ai_accel := 12.0
+@export var ai_lateral_margin := 0.87
+@export var ai_braking_accel := 21.0
+@export var ai_accel := 10.0
 @export var ai_lookahead_base := 6.0
 @export var ai_lookahead_speed_scale := 0.42
 @export var ai_lookahead_min := 6.0
@@ -92,3 +92,17 @@ extends Node
 @export var ai_side_by_side_distance := 9.5
 @export var ai_corridor_width := 2.2
 @export var ai_drs_min_speed := 38.0
+
+@export_category("Driver policy")
+@export var ai_control_hz := 30.0
+@export var ai_profile_safety := 0.94
+@export var ai_plan_accel_margin := 0.60
+@export var ai_plan_brake_margin := 0.86
+@export var ai_preview_speed_scale := 0.32
+@export var ai_preview_base := 9.0
+@export var ai_heading_damping := 0.10
+@export var ai_follow_time := 0.85
+@export var ai_pass_width := 3.2
+@export var ai_max_lane_offset := 7.0
+@export var ai_noise_per_lap := 0.005
+@export var ai_noise_per_session := 0.003

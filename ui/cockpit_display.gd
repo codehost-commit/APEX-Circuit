@@ -1,6 +1,6 @@
 class_name CockpitDisplay
 extends Control
-## A readable wheel display used only with the cockpit camera.
+## Readable cockpit-only steering wheel and instrument panel.
 
 var car: RaycastFormulaCar
 
@@ -10,31 +10,28 @@ func _process(_delta: float) -> void:
 func _draw() -> void:
 	if car == null:
 		return
-	var centre := Vector2(size.x * 0.5, size.y * 0.62)
-	var radius := minf(size.x * 0.27, size.y * 0.28)
-	var wheel_color := Color("#10141a")
-	draw_circle(centre, radius, wheel_color)
-	draw_arc(centre, radius, PI * 0.12, PI * 0.88, 24, Color("#c9d2d7"), 5.0, true)
-	draw_arc(centre, radius, PI * 1.12, PI * 1.88, 24, Color("#c9d2d7"), 5.0, true)
-	var rotation := car.steering_input * 0.48
-	var spoke := Vector2(sin(rotation), -cos(rotation)) * radius * 0.74
-	draw_line(centre, centre + spoke, Color("#dce4e7"), 7.0, true)
-	draw_line(centre, centre + spoke.rotated(2.35), Color("#dce4e7"), 7.0, true)
-	draw_line(centre, centre + spoke.rotated(-2.35), Color("#dce4e7"), 7.0, true)
-	var display := Rect2(centre - Vector2(radius * 0.43, radius * 0.29), Vector2(radius * 0.86, radius * 0.58))
-	draw_rect(display, Color("#071017"), true)
-	draw_rect(display, Color("#778f9e"), false, 2.0)
+	var centre := size * Vector2(0.5, 0.62)
+	draw_set_transform(centre, car.steering_input * 0.5)
+	var wheel := PackedVector2Array([Vector2(-180,-65), Vector2(-145,-96), Vector2(-113,-75), Vector2(113,-75), Vector2(145,-96), Vector2(180,-65), Vector2(185,38), Vector2(138,69), Vector2(104,53), Vector2(-104,53), Vector2(-138,69), Vector2(-185,38)])
+	draw_colored_polygon(wheel, Color("#151d23"))
+	draw_polyline(wheel, Color("#56656c"), 3, true)
+	draw_line(Vector2(-148,-57), Vector2(-148,32), Color("#03090d"), 34, true)
+	draw_line(Vector2(148,-57), Vector2(148,32), Color("#03090d"), 34, true)
+	for side in [-1, 1]:
+		draw_circle(Vector2(112 * side,-26), 10, ApexStyle.RED if side < 0 else ApexStyle.ACCENT)
+		draw_circle(Vector2(109 * side,16), 8, Color("#399ecd"))
+	draw_rect(Rect2(-91,-70,182,109), Color("#041316"))
+	draw_rect(Rect2(-91,-70,182,109), Color("#59777b"), false, 2)
 	var font := get_theme_default_font()
-	var gear_text := "N" if car.gear <= 0 else str(car.gear)
-	draw_string(font, display.position + Vector2(display.size.x * 0.34, display.size.y * 0.48), gear_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(radius * 0.48), Color("#f5f7e9"))
-	draw_string(font, display.position + Vector2(11.0, display.size.y - 9.0), "%03d KM/H" % int(car.speed_mps * 3.6), HORIZONTAL_ALIGNMENT_LEFT, -1.0, int(radius * 0.15), Color("#b9d9ed"))
-	var led_y := centre.y - radius * 1.18
-	for index in 10:
-		var amount := float(index + 1) / 10.0
-		var lit := car.rpm / car.tuning.rev_limit_rpm >= amount * 0.72
-		var color := Color("#1f3529")
-		if lit:
-			color = Color("#4cde72") if index < 5 else (Color("#f2d343") if index < 8 else Color("#e8454d"))
-		draw_rect(Rect2(centre.x - radius + float(index) * radius * 0.2, led_y, radius * 0.14, radius * 0.11), color, true)
-	if car.drs_open:
-		draw_string(font, Vector2(centre.x - 18.0, led_y - 10.0), "DRS", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16, Color("#66ef9d"))
+	draw_string(font, Vector2(-17,-6), "R" if car.reverse_engaged else str(car.gear), HORIZONTAL_ALIGNMENT_LEFT, -1, 53, ApexStyle.WHITE)
+	draw_string(font, Vector2(-66,26), "%03d KM/H" % int(car.speed_mps * 3.6), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, ApexStyle.WHITE)
+	draw_string(font, Vector2(-76,-51), "%05d RPM" % int(car.rpm), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, ApexStyle.ACCENT)
+	var fraction := clampf((car.rpm - car.tuning.idle_rpm) / (car.tuning.rev_limit_rpm - car.tuning.idle_rpm), 0, 1)
+	for index in 15:
+		var color := Color("#25363a")
+		if fraction >= float(index) / 15:
+			color = ApexStyle.ACCENT if index < 8 else (Color("#ffd46c") if index < 12 else Color("#ac91ff"))
+		draw_circle(Vector2(-85 + index * 12, -84), 4, color)
+	if car.drs_available:
+		draw_string(font, Vector2(-34,61), "DRS OPEN" if car.drs_open else "DRS READY", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ApexStyle.ACCENT)
+	draw_set_transform(Vector2.ZERO)
