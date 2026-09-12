@@ -3,6 +3,8 @@ extends Node3D
 
 var track: CircuitTrack
 var player_car: RaycastFormulaCar
+var all_cars: Array[RaycastFormulaCar] = []
+var _ai_profile: RacingLineProfile
 
 func _ready() -> void:
 	_setup_input_map()
@@ -21,6 +23,8 @@ func _ready() -> void:
 	add_child(player_car)
 	player_car.race_enabled = true
 	GameState.player_car = player_car
+	all_cars.append(player_car)
+	_spawn_ai_field()
 	print("APEX Circuit booted: Forward+ project, Jolt configured, game systems loading.")
 
 func _build_environment() -> void:
@@ -43,6 +47,30 @@ func _build_environment() -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = RaceConfig.shadow_distance
 	add_child(sun)
+
+func _spawn_ai_field() -> void:
+	_ai_profile = RacingLineProfile.new()
+	_ai_profile.build(track, player_car.tuning)
+	var colors := [Color("#2189d5"), Color("#dfb42c"), Color("#35af68"), Color("#7b55bd"), Color("#dd6947"), Color("#df4384"), Color("#46b8bd"), Color("#d6dfed"), Color("#9ca637"), Color("#d33c3c"), Color("#788796")]
+	for index in RaceConfig.field_ai_count:
+		var car := RaycastFormulaCar.new()
+		car.name = "AI_%02d" % (index + 1)
+		car.driver_name = "AI %02d" % (index + 1)
+		car.livery_color = colors[index % colors.size()]
+		car.track = track
+		car.global_transform = track.pose_at_grid(index + 1)
+		add_child(car)
+		car.race_enabled = true
+		all_cars.append(car)
+	for index in RaceConfig.field_ai_count:
+		var driver := AIFormulaDriver.new()
+		driver.name = "Driver_%02d" % (index + 1)
+		driver.pace_multiplier = 0.975 + float(index % 6) * 0.006
+		driver.reaction_seconds = 0.10 + float(index % 3) * 0.04
+		driver.error_amplitude = 0.006 + float(index % 4) * 0.004
+		driver.driver_seed = index + 17
+		add_child(driver)
+		driver.setup(all_cars[index + 1], track, _ai_profile, all_cars)
 
 func _setup_input_map() -> void:
 	var bindings := {
