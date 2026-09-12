@@ -51,22 +51,33 @@ func _ready() -> void:
 func _build_environment() -> void:
 	var environment_node := WorldEnvironment.new()
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#8fa9bf")
+	var panorama := PanoramaSkyMaterial.new()
+	panorama.panorama = load("res://assets/hdris/hochsal_field_1k.hdr")
+	var sky := Sky.new()
+	sky.sky_material = panorama
+	environment.background_mode = Environment.BG_SKY
+	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("#b9c6d0")
-	environment.ambient_light_energy = 0.62
+	environment.ambient_light_energy = 0.46
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	environment.tonemap_exposure = 1.08
 	environment.glow_enabled = true
 	environment.glow_intensity = 0.55
+	environment.ssao_enabled = true
+	environment.ssao_radius = 1.2
+	environment.ssao_intensity = 1.25
+	environment.ssr_enabled = RaceConfig.enable_ssr
+	environment.sdfgi_enabled = RaceConfig.enable_sdfgi
 	environment_node.environment = environment
 	add_child(environment_node)
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation_degrees = Vector3(-48.0, -30.0, 0.0)
-	sun.light_energy = 1.7
+	sun.light_energy = 1.35
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = RaceConfig.shadow_distance
+	sun.directional_shadow_fade_start = 0.82
 	add_child(sun)
 
 func _spawn_ai_field() -> void:

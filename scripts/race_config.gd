@@ -54,6 +54,11 @@ extends Node
 @export var field_ai_count := 11
 @export var shadow_distance := 110.0
 @export var target_fps := 30
+@export var world_lod_distance := 145.0
+@export var world_lod_fade_distance := 24.0
+@export var trackside_tree_count := 72
+@export var enable_ssr := false
+@export var enable_sdfgi := false
 
 @export_category("AI")
 @export var ai_profile_samples := 240

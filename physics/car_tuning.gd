@@ -25,6 +25,7 @@ extends Resource
 @export var post_peak_falloff := 0.22
 @export var wheel_inertia := 1.15
 @export var rolling_resistance := 0.014
+@export var offroad_drag_force := 980.0
 
 @export_category("Powertrain")
 @export var idle_rpm := 3500.0

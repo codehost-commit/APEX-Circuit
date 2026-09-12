@@ -220,6 +220,9 @@ func _update_wheel(wheel: Dictionary, state: PhysicsDirectBodyState3D, delta: fl
 	wheel.normal_force = normal_force
 	var load_factor := pow(maxf(normal_force / maxf(static_load, 1.0), 0.12), tuning.load_sensitivity - 1.0)
 	var grip_limit: float = tuning.tyre_mu * float(surface.grip) * normal_force * load_factor
+	if String(surface.name) != "asphalt" and speed_mps > 0.2:
+		var surface_drag: float = tuning.offroad_drag_force * maxf(float(surface.drag) - 1.0, 0.0) * 0.25
+		apply_central_force(-state.linear_velocity.normalized() * surface_drag)
 	var slip_ratio := (float(wheel.omega) * tuning.wheel_radius - forward_speed) / maxf(absf(forward_speed), 4.0)
 	var slip_angle := atan2(lateral_speed, maxf(absf(forward_speed), 3.0))
 	var long_demand: float = _tyre_response(slip_ratio, tuning.longitudinal_peak_slip) * grip_limit

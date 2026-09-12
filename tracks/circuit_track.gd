@@ -56,7 +56,58 @@ func _build_visual_and_collision() -> void:
 		_add_road_piece(first, second, RaceConfig.track_width, Color("#25282d"), "asphalt", 0.02)
 		_add_road_piece(first, second, RaceConfig.track_width + RaceConfig.kerb_width * 2.0, Color("#c6c7c3"), "kerb", -0.025)
 		_add_kerb_stripes(first, second)
+	_build_trackside_multimeshes()
 	_add_start_finish()
+
+func _build_trackside_multimeshes() -> void:
+	var barrier_mesh := BoxMesh.new()
+	barrier_mesh.size = Vector3(0.32, 0.88, 3.4)
+	var barrier_material := _material(Color("#b6bbc0"), 0.52, 0.32)
+	barrier_mesh.material = barrier_material
+	var barrier_instances := centerline.size() * 8
+	var barriers := MultiMesh.new()
+	barriers.transform_format = MultiMesh.TRANSFORM_3D
+	barriers.instance_count = barrier_instances
+	barriers.mesh = barrier_mesh
+	var barrier_node := MultiMeshInstance3D.new()
+	barrier_node.name = "Barrier_LOD_MultiMesh"
+	barrier_node.multimesh = barriers
+	barrier_node.visibility_range_end = RaceConfig.world_lod_distance
+	barrier_node.visibility_range_end_margin = RaceConfig.world_lod_fade_distance
+	add_child(barrier_node)
+	var cursor := 0
+	for index in centerline.size():
+		var first := centerline[index]
+		var second := centerline[(index + 1) % centerline.size()]
+		var tangent := (second - first).normalized()
+		var normal := Vector3(tangent.z, 0.0, -tangent.x)
+		for segment in 4:
+			for side in [-1.0, 1.0]:
+				var side_float: float = float(side)
+				var position_value: Vector3 = first.lerp(second, (float(segment) + 0.5) / 4.0) + normal * side_float * (RaceConfig.track_width * 0.5 + RaceConfig.kerb_width + 1.4) + Vector3.UP * 0.42
+				barriers.set_instance_transform(cursor, Transform3D(Basis.looking_at(-tangent, Vector3.UP), position_value))
+				cursor += 1
+	var tree_mesh := CylinderMesh.new()
+	tree_mesh.top_radius = 1.0
+	tree_mesh.bottom_radius = 2.5
+	tree_mesh.height = 8.0
+	tree_mesh.radial_segments = 6
+	tree_mesh.material = _material(Color("#314f35"), 0.94, 0.0)
+	var trees := MultiMesh.new()
+	trees.transform_format = MultiMesh.TRANSFORM_3D
+	trees.instance_count = RaceConfig.trackside_tree_count
+	trees.mesh = tree_mesh
+	var tree_node := MultiMeshInstance3D.new()
+	tree_node.name = "Trees_LOD_MultiMesh"
+	tree_node.multimesh = trees
+	tree_node.visibility_range_end = RaceConfig.world_lod_distance * 1.6
+	tree_node.visibility_range_end_margin = RaceConfig.world_lod_fade_distance
+	add_child(tree_node)
+	for index in RaceConfig.trackside_tree_count:
+		var angle := float(index) * 2.39996323
+		var radius := 188.0 + float(index % 7) * 8.0
+		var position_value := Vector3(cos(angle) * radius, 4.0, sin(angle) * radius)
+		trees.set_instance_transform(index, Transform3D(Basis.IDENTITY, position_value))
 
 func _add_road_piece(first: Vector3, second: Vector3, width: float, color: Color, surface: String, y: float) -> void:
 	var length := first.distance_to(second) + 0.45

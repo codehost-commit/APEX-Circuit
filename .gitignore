@@ -5,8 +5,3 @@
 *.tmp
 *.log
 Python Backup.zip
-assets/**/*.blend
-assets/**/*.fbx
-assets/**/*.glb
-assets/**/*.gltf
-assets/**/*.hdr
