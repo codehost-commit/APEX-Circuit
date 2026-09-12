@@ -9,6 +9,7 @@ const GRAVITY := 9.81
 @export var tuning: CarTuning = preload("res://physics/default_car_tuning.tres")
 @export var player_controlled := false
 @export var driver_name := "Driver"
+@export var livery_index := 0
 @export var livery_color := Color("#f32b4f")
 @export var art_root: Node3D
 @export var visual_scene: PackedScene
@@ -122,7 +123,7 @@ func _ready() -> void:
 	if art_root == null:
 		_generated_visual = FormulaVisual.new()
 		_generated_visual.name = "FormulaBody"
-		_generated_visual.configure(livery_color, tuning, _wheels)
+		_generated_visual.configure(livery_color, tuning, _wheels, livery_index)
 		add_child(_generated_visual)
 	else:
 		_bind_imported_wheels()
@@ -131,6 +132,21 @@ func _ready() -> void:
 	_audio.car = self
 	add_child(_audio)
 	body_entered.connect(_on_body_entered)
+	if not player_controlled:
+		var nameplate := Label3D.new()
+		nameplate.name = "DriverName"
+		nameplate.text = driver_name
+		nameplate.font = ApexStyle.body_font()
+		nameplate.font_size = 48
+		nameplate.pixel_size = 0.016
+		nameplate.position.y = 2.2
+		nameplate.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		nameplate.modulate = Color.WHITE
+		nameplate.outline_size = 9
+		nameplate.outline_modulate = Color("101c28")
+		nameplate.no_depth_test = false
+		nameplate.visibility_range_end = 130
+		add_child(nameplate)
 
 func _bind_imported_wheels() -> void:
 	# The art wrapper uses +X right, -Z forward, metres, and centred wheel nodes.
@@ -163,10 +179,13 @@ func _create_wheels() -> void:
 		ray.target_position = Vector3.DOWN * (tuning.suspension_rest_length + tuning.wheel_radius + 0.13)
 		ray.collision_mask = 1
 		ray.exclude_parent = true
-		ray.enabled = true
+		# Contacts are queried from the integrator pose below. Avoid a second,
+		# unused scene-tree raycast for every wheel at every physics tick.
+		ray.enabled = false
 		add_child(ray)
+		var query := PhysicsRayQueryParameters3D.create(Vector3.ZERO, Vector3.DOWN, 1, [get_rid()])
 		_wheels.append({"name": layout[0], "local_position": layout[1], "front": layout[2],
-			"ray": ray, "omega": 0.0, "roll": 0.0, "compression": 0.0, "normal_force": 0.0,
+			"ray": ray, "query": query, "omega": 0.0, "roll": 0.0, "compression": 0.0, "normal_force": 0.0,
 			"surface": "asphalt", "grip": 1.0, "rolling": 0.014, "contact": Vector3.ZERO,
 			"grounded": false, "slip_ratio": 0.0, "slip_angle": 0.0, "risk": 0.0,
 			"visual": null, "roll_node": null, "dust": null})
@@ -187,9 +206,9 @@ func _physics_process(delta: float) -> void:
 	else:
 		_update_inputs(delta, float(ai_command.get("throttle", 0.0)), float(ai_command.get("brake", 0.0)),
 			float(ai_command.get("steer", 0.0)), bool(ai_command.get("drs", false)), bool(ai_command.get("handbrake", false)))
-	_update_wheel_visuals(delta)
 
 func _process(delta: float) -> void:
+	_update_wheel_visuals(delta)
 	_update_camera(delta)
 
 func _update_inputs(delta: float, throttle: float, brake: float, steer: float, drs: bool, handbrake: bool) -> void:
@@ -351,19 +370,25 @@ func _sample_suspension(state: PhysicsDirectBodyState3D) -> void:
 	var counts: Dictionary = {}
 	var up := state.transform.basis.y.normalized()
 	for wheel in _wheels:
-		var ray: RayCast3D = wheel.ray
-		ray.force_raycast_update()
-		wheel.grounded = ray.is_colliding()
+		# Query the integrator's current pose; scene-tree rays can still carry the
+		# preceding pose during a same-frame menu/session reset.
+		var ray_origin := state.transform * Vector3(wheel.local_position)
+		var ray_end := ray_origin - up * (tuning.suspension_rest_length + tuning.wheel_radius + 0.13)
+		var query: PhysicsRayQueryParameters3D = wheel.query
+		query.from = ray_origin
+		query.to = ray_end
+		var hit := state.get_space_state().intersect_ray(query)
+		wheel.grounded = not hit.is_empty()
 		if not wheel.grounded:
 			wheel.compression = 0.0
 			wheel.normal_force = 0.0
 			surface_grips[wheel.name] = 0.0
 			continue
 		grounded_wheels += 1
-		var contact := ray.get_collision_point()
-		var normal := ray.get_collision_normal().normalized()
+		var contact: Vector3 = hit.position
+		var normal: Vector3 = hit.normal.normalized()
 		wheel.contact = contact
-		var spring_length := ray.global_position.distance_to(contact) - tuning.wheel_radius
+		var spring_length := ray_origin.distance_to(contact) - tuning.wheel_radius
 		var compression := clampf(tuning.suspension_rest_length - spring_length, -0.08, tuning.suspension_rest_length)
 		var contact_offset := contact - state.transform.origin
 		var contact_velocity := state.linear_velocity + state.angular_velocity.cross(contact_offset - state.center_of_mass)
@@ -373,7 +398,14 @@ func _sample_suspension(state: PhysicsDirectBodyState3D) -> void:
 		wheel.compression = compression
 		wheel.normal_force = suspension_force
 		state.apply_force(normal * suspension_force, contact_offset)
-		var surface := _surface_for_point(contact)
+		# The collision ribbon already identifies the surface under this tyre.
+		# Re-project only unknown colliders; four full spline searches per car
+		# per tick waste CPU and can disagree with the clipped kerb geometry.
+		var collider: Object = hit.collider
+		var surface_kind := String(collider.get_meta("surface_type", ""))
+		var surface: Dictionary = CircuitTrack.SURFACES.get(surface_kind, {})
+		if surface.is_empty():
+			surface = _surface_for_point(contact)
 		var surface_name := String(surface.get("name", "asphalt"))
 		wheel.surface = surface_name
 		var phase := float(_wheels.find(wheel)) * 1.7 + 0.4
@@ -480,6 +512,8 @@ func _surface_for_point(point: Vector3) -> Dictionary:
 	return {"name": "asphalt", "grip": 1.0, "drag": 1.0, "legal": true}
 
 func _update_wheel_visuals(delta: float) -> void:
+	if not visible or DisplayServer.get_name() == "headless":
+		return
 	for wheel in _wheels:
 		var visual: Node3D = wheel.visual
 		if visual == null:
@@ -490,10 +524,10 @@ func _update_wheel_visuals(delta: float) -> void:
 		var roll_node: Node3D = wheel.roll_node
 		if roll_node != null:
 			roll_node.rotation.x = float(wheel.roll)
-		var dust: CPUParticles3D = wheel.dust
+		var dust: GPUParticles3D = wheel.dust
 		if dust != null:
-			dust.emitting = wheel.grounded and speed_mps > 8.0 and (String(wheel.surface) in ["sand", "gravel", "grass"] or float(wheel.risk) > 1.05)
-			dust.color = Color(0.69, 0.56, 0.37, 0.28) if String(wheel.surface) != "asphalt" else Color(0.80, 0.83, 0.86, 0.17)
+			dust.update_plume(bool(wheel.grounded), speed_mps, String(wheel.surface), float(wheel.risk), linear_velocity)
+
 	if _generated_visual != null:
 		_generated_visual.update_controls(steering_input, drs_open, brake_input, _physics_time)
 	elif art_root != null and art_root.has_method("update_controls"):

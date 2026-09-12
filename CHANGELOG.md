@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### September car, circuit and broadcast overhaul
+
+- Matched the supplied circular HUD and low/wide brake-board references; integrated the supplied APEX logo on dark backgrounds throughout the game.
+- Added measured throttle/brake/G telemetry circle, top-left delta/sector timing, readable race-control announcements, AI names, new fonts, unit/mouse-look/graphics settings, and requested leadership credits.
+- Rebuilt aero, axles, rear assembly, rain light, driver gloves, shared wheel/OLED/RPM LEDs and working rear-view camera surfaces. Full-body ghosts now have wheels, steering and roll.
+- Generated fictional sponsor/logo atlases and assigned twelve distinct car combinations plus trackside branding.
+- Rebuilt continuous fence joins, prevented folded inner kerbs, narrowed kerbs, replaced DRS signs with paint and removed sector boards. Ground-level brake markers fracture into velocity-driven rigid fragments and restore on restart.
+- Added collidable varied paddock buildings, corrected stands, detailed spectator geometry, scanned CC0 3D tree variants, green terrain, a full 3D landscape, HDR sky, sun motion, material response and graphics presets with optional SDFGI.
+- Fixed integrator-pose suspension sampling and AI reset/tactical conflicts. Reused collision surface metadata to remove redundant per-tyre spline searches; disabled duplicate scene-tree rays.
+- Added physical presentation tests and reran handling, solo laps, flying field and a full twelve-car five-lap race. See VALIDATION.md for measured results and rendering limits.
+
 ### Prototype-based revamp
 
 - Replaced DRS distance/speed estimates with interpolated physical detection-line timestamps, including same-tick ordering and recovery reset tests.

@@ -1,6 +1,16 @@
 class_name ApexStyle
 extends RefCounted
 
+static func brand_logo(dimensions := Vector2(480,160)) -> TextureRect:
+	var logo := TextureRect.new()
+	logo.name = "ApexCircuitLogo"
+	logo.texture = preload("res://assets/branding/apex-circuit-dark.png")
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.custom_minimum_size = dimensions
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return logo
+
 const INK := Color("#0b131b")
 const WHITE := Color("#f1f4ef")
 const MUTED := Color("#99abb4")

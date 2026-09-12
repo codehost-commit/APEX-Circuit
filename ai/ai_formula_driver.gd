@@ -48,6 +48,9 @@ func reset_session() -> void:
 	_was_enabled = false
 	_speed_integral = 0.0
 	_pass_target = null
+	_decision_timer = 0.0
+	_projection = projection
+	_last_lap = car.lap
 
 func _physics_process(delta: float) -> void:
 	if car == null or not enabled or not car.race_enabled or car.finished:
@@ -119,6 +122,18 @@ func _update_tactics(delta: float) -> void:
 	if not tactics_enabled:
 		desired_lane_offset = 0.0
 		return
+	var approaching_corner := false
+	for preview in [0.0,20.0,40.0,65.0]:
+		if circuit.curvature_at(car.race_progress + preview) > 0.018:
+			approaching_corner = true
+	if approaching_corner:
+		# Keep the occupied lane alongside; the corridor still enforces separation.
+		desired_lane_offset = clampf(lane_offset,-4.5,4.5)
+		if _corridor(lane_offset,0.0) == Vector2(-RaceConfig.ai_max_lane_offset,RaceConfig.ai_max_lane_offset):
+			desired_lane_offset = 0.0
+		tactic = "FOLLOW"
+		tactical_commit_seconds = 0.0
+		return
 	if tactical_commit_seconds > 0.0:
 		return
 	var passing_clear := true
@@ -163,7 +178,7 @@ func _update_tactics(delta: float) -> void:
 		_pass_target = nearest
 		tactic = "ATTACK"
 		tactical_commit_seconds = RaceConfig.ai_tactical_commit_time
-	elif behind != null and behind_gap < RaceConfig.ai_defend_distance and behind.speed_mps > car.speed_mps:
+	elif behind != null and behind_gap > 14.0 and behind_gap < RaceConfig.ai_defend_distance and behind.speed_mps > car.speed_mps and passing_clear:
 		var signed_bend := circuit.signed_curvature_at(car.race_progress + 50.0)
 		desired_lane_offset = -signf(signed_bend) * RaceConfig.ai_defend_lane_offset
 		tactic = "DEFEND"
@@ -183,12 +198,12 @@ func _corridor(current: float, requested: float) -> Vector2:
 			continue
 		var lateral: float = p.offset
 		# Preserve the side already occupied, including the entire swept path.
-		if float(_projection.get("offset", current)) <= lateral:
+		if float(_projection.get("offset", current)) < lateral or (is_equal_approx(float(_projection.get("offset", current)),lateral) and opponents.find(car) < opponents.find(other)):
 			allowed.y = minf(allowed.y, lateral - RaceConfig.ai_corridor_width)
 		else:
 			allowed.x = maxf(allowed.x, lateral + RaceConfig.ai_corridor_width)
 	if allowed.x > allowed.y:
-		return Vector2(current, current)
+		return Vector2(clampf(current,-RaceConfig.ai_max_lane_offset,RaceConfig.ai_max_lane_offset),clampf(current,-RaceConfig.ai_max_lane_offset,RaceConfig.ai_max_lane_offset))
 	return allowed
 
 func _traffic_speed_limit() -> float:

@@ -39,19 +39,22 @@ void fragment() {
 	if (surface_kind == 0) {
 		float grain_visibility = 1.0 - clamp(length(fwidth(p)) * 8.0, 0.0, 1.0);
 		float rubber = 1.0 - smoothstep(1.0, 4.7, abs(UV.x + sin(UV.y * 0.009) * 2.3));
+		SPECULAR = 0.18;
 		vec3 asphalt = mix(vec3(0.055, 0.063, 0.071), vec3(0.075, 0.082, 0.09), patches);
 		ALBEDO = photographed * (0.78 + patches * 0.15) * (1.0 - rubber * 0.18);
-		ROUGHNESS = clamp(texture(surface_roughness, map_uv).r, 0.65, 0.98) - rubber * 0.08;
+		ROUGHNESS = clamp(texture(surface_roughness, map_uv).r, 0.82, 0.98) - rubber * 0.04;
 	} else if (surface_kind == 1) {
 		float stripe = step(0.5, fract(UV.y / 17.36));
 		float groove = smoothstep(0.36, 0.45, abs(fract(UV.y * 4.0) - 0.5));
 		vec3 paint = mix(vec3(0.64, 0.025, 0.044), vec3(0.84, 0.825, 0.76), stripe);
 		ALBEDO = paint * (0.91 + 0.09 * patches) * (1.0 - groove * 0.09) + (micro - 0.5) * 0.025;
-		ROUGHNESS = 0.67;
+		ROUGHNESS = 0.82;
+		SPECULAR = 0.20;
 	} else if (surface_kind == 2) {
 		float mow = smoothstep(0.43, 0.57, sin((p.x + p.y * 0.13) * 0.22) * 0.5 + 0.5);
 		vec3 grass = mix(vec3(0.035, 0.082, 0.017), vec3(0.068, 0.128, 0.032), patches);
-		ALBEDO = photographed * (0.85 + mow * 0.12) * (0.85 + patches * 0.25);
+		float luminance = dot(photographed, vec3(0.299,0.587,0.114));
+		ALBEDO = mix(vec3(0.095,0.19,0.034),vec3(0.17,0.29,0.07),patches) * (0.55 + luminance * 2.2) * (0.9 + mow * 0.10);
 		ROUGHNESS = 0.99;
 	} else {
 		float rake = sin(p.x * 17.0 + p.y * 7.0) * 0.035;

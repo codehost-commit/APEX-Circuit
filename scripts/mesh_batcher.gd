@@ -3,7 +3,7 @@ extends RefCounted
 static func merge_children(parent: Node3D, excluded: Array = []) -> void:
 	var groups: Dictionary = {}
 	for child in parent.get_children():
-		if child in excluded:
+		if child in excluded or child.is_in_group("track_markings"):
 			continue
 		if child is MeshInstance3D and child not in excluded and child.mesh != null and child.get_child_count() == 0:
 			var material: Material = child.material_override
@@ -28,6 +28,7 @@ static func merge_children(parent: Node3D, excluded: Array = []) -> void:
 		merged.mesh = builder.commit()
 		merged.material_override = material
 		merged.cast_shadow = items[0].cast_shadow
+		merged.layers = items[0].layers
 		parent.add_child(merged)
 		for item: MeshInstance3D in items:
 			parent.remove_child(item)

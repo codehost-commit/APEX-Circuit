@@ -13,9 +13,9 @@ The full prompt outranks the artifact plan. The later request to copy ZIP handli
 | Race control | Checkpoints, all-four-off limits, deferred fault penalties for any driver, retirement, checkpoint recovery, penalty-adjusted classification |
 | Gaps | Interpolated passage-time history; DRS uses actual interpolated detector timestamps, including crossings in the same physics tick |
 | AI | Same physical car, curvature/braking profile, pure pursuit, smoothed tactics, final-target alongside corridor, track-space following around corners, pace variation |
-| UI | Live RPM/gear/speed/input/tyre telemetry, sectors, standings, minimap, DRS, messages, pause/settings/results; cockpit-only wheel readout |
-| Cameras/menu | Collision-swept chase, T-cam, driver-eye cutaway; floating overlay, physical flying field, low/aerial shots, fades and proximity shake |
-| Art/audio | Original procedural body, independent wheels, active flap, physical gantry/stands/paddock/fences/trees/pebbles/terrain; CC0 PBR textures; synthesized RPM audio |
+| UI | Live RPM/gear/speed/input/tyre telemetry, sectors, standings, minimap, DRS, messages, pause/settings/results; shared 3D steering-wheel readout; measured G-circle; metric/imperial settings |
+| Cameras/menu | Collision-swept chase, T-cam, driver-eye view with shared wheel, gloves, live mirrors and automatic mouse look; floating overlay, physical flying field, low/aerial shots, fades and proximity shake |
+| Art/audio | Original procedural body, independent wheels, active flap, physical gantry/stands/paddock/continuous fences/breakable brake boards/pebbles/3D terrain; scanned tree variants, original sponsor atlases, articulated crowds; CC0 PBR textures; synthesized RPM audio |
 | K coach | Native 24-section clean-run bank and persistence, not the full Python coach replay/blending system |
 | T training | Experimental same-physics pace search with valid-lap selection/persistence, not the NumPy/vector evolutionary trainer |
 
@@ -27,6 +27,6 @@ The full prompt outranks the artifact plan. The later request to copy ZIP handli
 - AI finishes races but occasional contact remains. No guarantee of perfectly clean racing against arbitrary player inputs.
 - No dedicated proximity-only forced-off adjudication beyond contact attribution and victim limits protection.
 - No fuel/pit strategy, tyre temperature/wear, component-level failures, weather or multiplayer was added.
-- Final photorealistic art, real recordings, baked GI, motion blur, exhaustive performance/release QA and packaging remain. The downloaded external car awaits pivot/camera integration and is not the tested default.
+- Final photorealistic character/body art, real recordings, hardware path tracing, motion blur, exhaustive performance/release QA and packaging remain. High uses SSR/SSIL/SSAO and volumetric haze; Ultra adds SDFGI. See OVERHAUL.md and VALIDATION.md. The downloaded external car awaits pivot/camera integration and is not the tested default.
 
 This records implemented code; it does not claim every full-spec acceptance criterion is met.

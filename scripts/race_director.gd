@@ -597,20 +597,28 @@ func _create_ghost() -> void:
 	_ghost = Node3D.new()
 	_ghost.name = "PersonalBestGhost"
 	add_child(_ghost)
+	var player := cars[0]
+	var wheels: Array[Dictionary] = []
+	for wheel: Dictionary in player._wheels:
+		wheels.append({"name": wheel.name, "local_position": wheel.local_position, "front": wheel.front})
+	var visual := preload("res://cars/formula_visual.gd").new()
+	visual.name = "CompleteGhostCar"
+	visual.ghost_mode = true
+	visual.configure(player.livery_color, player.tuning, wheels)
+	_ghost.add_child(visual)
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.30, 0.95, 0.86, 0.27)
+	material.albedo_color = Color(0.30, 0.82, 1.0, 0.24)
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	for item in [[Vector3(0.75, 0.44, 3.3), Vector3(0, 0.45, 0)], [Vector3(1.95, 0.12, 0.5), Vector3(0, 0.25, -2.0)], [Vector3(1.55, 0.18, 0.4), Vector3(0, 0.95, 1.75)]]:
-		var mesh := MeshInstance3D.new()
-		var shape := BoxMesh.new()
-		shape.size = item[0]
-		mesh.mesh = shape
-		mesh.position = item[1]
-		mesh.material_override = material
-		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_ghost.add_child(mesh)
+	_ghost_material(visual, material)
 	_ghost.visible = false
+
+func _ghost_material(node: Node, material: Material) -> void:
+	if node is MeshInstance3D:
+		node.material_override = material
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for child in node.get_children():
+		_ghost_material(child, material)
 
 func _update_ghost(delta: float) -> void:
 	var player := GameState.player_car as RaycastFormulaCar
@@ -623,7 +631,7 @@ func _update_ghost(delta: float) -> void:
 		_record_timer -= delta
 		if _record_timer <= 0.0:
 			_record_timer = 0.05
-			_recording.append([float(status.current_lap), player.race_progress, player.global_position.x, player.global_position.y, player.global_position.z, player.rotation.y])
+			_recording.append([float(status.current_lap), player.race_progress, player.global_position.x, player.global_position.y, player.global_position.z, player.rotation.y, player.rotation.x, player.rotation.z, player.steering_input, player.drs_open])
 	if not _ghost.visible:
 		return
 	var current := float(status.current_lap)
@@ -634,6 +642,16 @@ func _update_ghost(delta: float) -> void:
 	var fraction := clampf((current - float(first[0])) / maxf(float(second[0]) - float(first[0]), 0.001), 0.0, 1.0)
 	_ghost.position = Vector3(float(first[2]), float(first[3]), float(first[4])).lerp(Vector3(float(second[2]), float(second[3]), float(second[4])), fraction)
 	_ghost.rotation.y = lerp_angle(float(first[5]), float(second[5]), fraction)
+	var visual := _ghost.get_node("CompleteGhostCar")
+	var steer := lerpf(float(first[8]),float(second[8]),fraction) if first.size() > 8 and second.size() > 8 else 0.0
+	if first.size() > 7 and second.size() > 7:
+		_ghost.rotation.x = lerp_angle(float(first[6]),float(second[6]),fraction)
+		_ghost.rotation.z = lerp_angle(float(first[7]),float(second[7]),fraction)
+	var recorded_speed := Vector3(float(first[2]),float(first[3]),float(first[4])).distance_to(Vector3(float(second[2]),float(second[3]),float(second[4]))) / maxf(0.01,float(second[0])-float(first[0]))
+	for wheel: Dictionary in visual._wheels:
+		wheel.roll_node.rotation.x -= recorded_speed / player.tuning.wheel_radius * delta
+		wheel.visual.rotation.y = -steer * player.get_max_steering_angle(recorded_speed) if wheel.front else 0.0
+	visual._flap.rotation.x = deg_to_rad(1 if first.size() > 9 and bool(first[9]) else -24)
 	if current > personal_best:
 		_ghost.visible = false
 

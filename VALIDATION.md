@@ -4,21 +4,34 @@ Windows; installed Godot 4.7.2 standard; Forward+/D3D12; NVIDIA Quadro T2000 Max
 
 | Check | Measured result |
 |---|---|
-| Original track | 4,239.5985 m; five checkpoints, three sectors, three DRS zones |
-| Continuity | 1,500 full-loop ray probes; zero missing collisions or spline jumps |
-| 0–100 km/h | 2.292 s |
+| Track continuity | 4,239.5985 m; 1,500 full-loop collision/projection probes, zero gaps or spline jumps |
+| Structure clearance | 4,500 chassis-volume sweeps across three driving lanes, zero obstructions |
+| 0-100 km/h | 2.292 s |
 | Speed at five seconds | 217.94 km/h, gear 5, four suspension contacts |
 | Brake from 198 km/h | 34.83 km/h after two seconds, 62.40 m travelled |
-| Steering | Right command +5.355 m right displacement; left -5.357 m |
-| Two physical solo laps | 97.918 s / 96.760 s, both valid without reset; maximum offset 4.01 m |
-| Twelve-car menu, 100 simulated seconds | Zero recovery teleports; max offset 3.98 m; brief hairpin slowdowns but no sustained stuck car |
-| Twelve-car race, final DRS revision | All twelve finished two laps; final results at 219.942 s; three adjudicated incidents, 13 s total penalties; no false jump-start penalty with brake held |
-| Full five-lap soak | All twelve finished five laps and reached results at 516.550 s; two adjudicated incidents, 8 s total penalties. This soak used commit `24efc84`, before the final detector-timestamp refinement above |
-| Rules | 21 checks pass: ordered gates, sector sum, shortcut rejection, five lights, jump-start deduplication, timestamp-based DRS (including same-tick interpolation, >1 s denial and reset), deferred aggressor penalty, penalty reorder, passage-time gaps, limits, reset/damage policy and ghost save/load. Brake-closing DRS also passes the handling suite |
-| Session/input flow | 15 checks pass: real menu/HUD signals, solo collision isolation, all camera readout modes, restart/unpause, results, full menu field restoration, qualifying skip/grid ordering, automatic qualifying expiry/restart, A/D and gamepad trigger bindings |
-| Actual GPU captures | Chase/T-cam/cockpit/menu reached 60 FPS at 1280×720 window, 0.85 3D scale, 2× MSAA; sampled p95 delta 16.67 ms; final chase/menu approximately 527/555 MiB GPU memory |
+| Steering | Right +5.355 m; left -5.357 m |
+| Two physical solo laps | 97.948 s / 96.918 s, both valid without reset; maximum offset 4.009 m |
+| Twelve-car menu, 100 simulated seconds | Zero recovery teleports; maximum offset 4.026 m; longest slow interval one second |
+| Final five-lap race | All twelve finishers, results at 516.183 s; 6 s total penalties |
+| Rules | 21 checks pass, including ordered timing gates, DRS detector timestamps, penalties, limits and PB/ghost persistence |
+| Session/input flow | 15 checks pass, including actual UI signals, mode changes, camera modes, restart, qualifying and gamepad bindings |
+| Presentation | 23 checks pass: upward terrain normals, units, mouse/controller look, twelve sponsor combinations, complete ghost wheels, mirror culling, DRS paint, absent sector boards, clear driving lanes, stable spawns, measured braking G/dot direction, actual marker collision/debris momentum, restart cleanup, debris timer isolation/lifetime and HUD bounds |
 
-These are short rendering captures, not a sustained benchmark or evidence of native 1080p performance, launch quality or gamepad feel. Some captures ran alongside headless tests. The first menu capture was 6 FPS; exact-pose projection caching and static-mesh batching addressed its major overhead.
+The final handling/lap/field/race runs include the integrator-pose suspension fix and collision-surface lookup optimization. The final presentation/flow runs additionally cover the supplied logo, reference-based HUD layout and wider/lower brake boards. Rule logic is unchanged since its passing run. Tests run headless at 120 fixed physics FPS; automated tests do not certify human driving feel or photorealism.
+
+## Rendering evidence
+
+Actual Forward+/D3D12 captures on the Quadro T2000 Max-Q, 1280 x 720 window:
+
+| Capture | Preset | Result |
+|---|---|---|
+| Stationary car inspection | High, 90% scale, 2x MSAA | 60 FPS; p95 16.67 ms; about 1,619 MiB reported GPU memory |
+| Stationary car inspection | Ultra, native scale, 4x MSAA, SDFGI | 60 FPS; p95 16.67 ms; about 2,171 MiB reported GPU memory |
+| T-cam with both live rearview cameras | High | 57 FPS; p95 19.44 ms; about 1,658 MiB reported GPU memory |
+| Twelve-car flying menu | High | 36-40 FPS across final views; p95 31.25-31.64 ms; about 1,546-1,615 MiB reported GPU memory |
+| Moving T-cam, supplied logo and reference HUD | High | 49 FPS; p95 22.42 ms; about 1,665 MiB reported GPU memory |
+
+These are short, view-dependent captures, not sustained benchmarks or a promise of 60 FPS in a full race. Some ran alongside headless checks and the open editor. Initial detailed-world menu captures were 6-16 FPS; moving visual animation out of the physics loop, avoiding idle particle-material updates, and using collision surface metadata instead of four redundant spline searches per car improved the measured menu result. Earlier revision claims of 60 FPS in every captured camera are superseded by this table. Hardware path tracing, full dynamic weather and photorealistic character art remain outside the implemented result; see [OVERHAUL.md](OVERHAUL.md).
 
 ## Reproduce
 
@@ -34,9 +47,9 @@ Individual case (absolute log paths on Windows):
 godot --headless --path . --fixed-fps 120 --log-file C:/absolute/path/apex-check.log tests/drive_checks.tscn -- --case=basics
 ```
 
-Cases: `basics`, `rules`, `flow`, `lap`, `field`, `race`, `race_full`; `fieldquick` is a 30-second diagnostic. `all` runs basics/lap/field/rules/flow; the PowerShell runner additionally runs the two-lap race. Physical lap/race cases take longer than rule checks. PB files and captures stay in ignored `tests/artifacts/`, not player saves. Unknown case names fail rather than reporting an empty success.
+Cases: `basics`, `rules`, `flow`, `lap`, `field`, `race`, `race_full`, `presentation`; `fieldquick` is a 30-second diagnostic. `all` runs basics/lap/field/rules/flow; the PowerShell runner additionally runs the two-lap race. Physical lap/race cases take longer than rule checks. PB files and captures stay in ignored `tests/artifacts/`, not player saves. Unknown case names fail rather than reporting an empty success.
 
-Normal-scene screenshot arguments: `--session=time_trial --autodrive --camera=0 --capture=C:/absolute/path/frame.png --capture-after=10`. Cameras 0/1/2 are chase/T-cam/cockpit; 3 is stationary car inspection. Omit session to capture the menu.
+Normal-scene screenshot arguments: `--session=time_trial --autodrive --camera=0 --capture=C:/absolute/path/frame.png --capture-after=10`. Cameras 0/1/2 are chase/T-cam/cockpit; 3 is stationary car inspection. Omit session to capture the menu. Add `--quality=0`, `1` or `2` for Performance/High/Ultra, or `--ui=settings` / `--ui=credits` for those menu panels. Run `tests/presentation_checks.tscn` directly for presentation checks; the runner selects that scene automatically.
 
 The rules deliberately move controlled poses to isolate timing. Their artificial 70.66-second traversal is **not a driven lap** and not evidence of 75-second human pace. The separate lap test uses physical inputs only.
 

@@ -68,7 +68,7 @@ func session_flow_checks() -> void:
 	for mode in 3:
 		car.set_camera_mode(mode)
 		game.hud._process(0.0)
-		check(game.hud.cockpit.visible == (mode == 2) and game.hud._instruments.visible == (mode != 2), "Camera %d has exactly one instrument display" % mode)
+		check(not game.hud.cockpit.visible and game.hud._instruments.visible, "Camera %d has exactly one instrument display" % mode)
 	GameState.set_paused(true)
 	game.hud.restart_requested.emit()
 	check(not get_tree().paused and GameState.mode == GameState.Mode.TIME_TRIAL and car.lap == 0, "Restart resumes and resets the current Time Trial mode")
@@ -113,7 +113,7 @@ func frames(count: int) -> void:
 func geometry_checks() -> void:
 	var circuit := game.track as CircuitTrack
 	check(absf(circuit.total_length - 4239.53) < 12.0, "Original prototype track length is preserved")
-	check(is_equal_approx(circuit.road_half_width, 10.5) and is_equal_approx(circuit.kerb_width, 7.84), "Original road and wide kerb dimensions")
+	check(is_equal_approx(circuit.road_half_width, 10.5) and is_equal_approx(circuit.kerb_width, 7.25), "Original road and revised kerb dimensions")
 	var missing := 0
 	var discontinuities := 0
 	var max_projection_error := 0.0

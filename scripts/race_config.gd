@@ -42,7 +42,7 @@ extends Node
 @export var gravity := 9.81
 @export var fixed_delta_hint := 0.0166667
 @export var track_width := 21.0
-@export var kerb_width := 7.84
+@export var kerb_width := 7.25
 @export var preview_camera_cut_min := 15.0
 @export var preview_camera_cut_max := 29.0
 @export var menu_fade_seconds := 0.55
@@ -56,7 +56,7 @@ extends Node
 @export var target_fps := 60
 @export var world_lod_distance := 145.0
 @export var world_lod_fade_distance := 24.0
-@export var trackside_tree_count := 72
+@export var trackside_tree_count := 144
 @export var enable_ssr := false
 @export var enable_sdfgi := false
 
@@ -89,7 +89,7 @@ extends Node
 @export var ai_defend_lane_offset := 2.5
 @export var ai_lane_change_rate := 1.25
 @export var ai_inside_lookahead := 18.0
-@export var ai_side_by_side_distance := 9.5
+@export var ai_side_by_side_distance := 5.6
 @export var ai_corridor_width := 2.2
 @export var ai_drs_min_speed := 38.0
 

@@ -86,6 +86,7 @@ func _process(delta: float) -> void:
 		_session.text = "QUALIFYING    /    %s LEFT" % RaceDirector.format_time(maxf(0, RaceConfig.qualifying_duration - director.qualifying_time))
 	else:
 		_session.text = "P%02d / %02d    /    LAP %d OF %d" % [position, field.size(), mini(player.lap + 1, GameState.total_laps), GameState.total_laps]
+	_session.text += "    /    S%d" % (int(status.current_sector) + 1)
 	_lap_clock.text = RaceDirector.format_time(float(status.current_lap)) if bool(status.started) else "OUT LAP"
 	_lap_clock.add_theme_color_override("font_color", ApexStyle.WHITE if bool(status.lap_valid) else ApexStyle.RED)
 	_timing.text = "LAST   %s%s\nBEST   %s\nPB       %s" % [RaceDirector.format_time(float(status.last_lap)), "  INVALID" if not bool(status.last_lap_valid) else "", RaceDirector.format_time(float(status.best_lap)), RaceDirector.format_time(director.personal_best)]
@@ -103,9 +104,9 @@ func _process(delta: float) -> void:
 	_dynamics.car = player
 	_dynamics.visible = mode != GameState.Mode.RESULTS
 	_instruments.car = player
-	_instruments.visible = not player.is_cockpit_camera() and mode != GameState.Mode.RESULTS
+	_instruments.visible = mode != GameState.Mode.RESULTS
 	cockpit.car = player
-	cockpit.visible = player.is_cockpit_camera() and mode != GameState.Mode.RESULTS
+	cockpit.visible = false # All cameras use the same physical wheel and its live display.
 	_standings.visible = not trial
 	_skip.visible = qualifying
 	_skip.disabled = false
@@ -132,6 +133,7 @@ func _build_layout() -> void:
 	timing_box.add_theme_constant_override("separation", 10)
 	timing_panel.add_child(timing_box)
 	_session = ApexStyle.label("TIME TRIAL", 20, ApexStyle.ACCENT)
+	_session.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	timing_box.add_child(_session)
 	_lap_clock = ApexStyle.label("OUT LAP", 47)
 	timing_box.add_child(_lap_clock)
@@ -147,11 +149,11 @@ func _build_layout() -> void:
 	_delta_label = ApexStyle.label("DELTA  --.---", 28)
 	timing_box.add_child(_delta_label)
 	_announcement = PanelContainer.new()
-	_root.add_child(_announcement)
 	_announcement.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_announcement.position = Vector2(-420, 32)
 	_announcement.custom_minimum_size = Vector2(790, 105)
 	_announcement.size.x = 790
+	_root.add_child(_announcement)
 	var announcement_style := ApexStyle.panel(0.96, ApexStyle.ACCENT)
 	announcement_style.border_width_left = 5
 	_announcement.add_theme_stylebox_override("panel", announcement_style)
@@ -181,9 +183,9 @@ func _build_layout() -> void:
 		_standings.add_child(label)
 		_standing_rows.append(label)
 	_skip = ApexStyle.button("SKIP TO GRID")
-	_skip.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_skip.position = Vector2(-412, 465)
-	_skip.size = Vector2(380, 62)
+	_skip.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_skip.position = Vector2(-155, 170)
+	_skip.size = Vector2(310, 58)
 	_skip.pressed.connect(func() -> void: skip_qualifying_requested.emit())
 	_root.add_child(_skip)
 	minimap = TrackMinimap.new()
@@ -197,10 +199,10 @@ func _build_layout() -> void:
 	_instruments.size = Vector2(390, 309)
 	_root.add_child(_instruments)
 	_dynamics = TelemetryCircle.new()
-	_root.add_child(_dynamics)
 	_dynamics.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	_dynamics.position = Vector2(-425, -663)
 	_dynamics.size = Vector2(390, 310)
+	_root.add_child(_dynamics)
 	cockpit = CockpitDisplay.new()
 	cockpit.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	cockpit.position = Vector2(-260, -255)

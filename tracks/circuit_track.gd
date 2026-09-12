@@ -39,7 +39,7 @@ const SURFACES := {
 }
 
 var road_half_width := 10.5
-var kerb_width := 7.84
+var kerb_width := 7.25
 var total_length := 0.0
 var centerline := PackedVector3Array()
 var racing_line: Path3D
@@ -179,6 +179,7 @@ func _build_materials() -> void:
 	_materials["steel"] = _material(Color("#a4acaf"),0.48,0.7)
 	_materials["teal"] = _material(Color("#087f86"),0.65,0.15)
 	_materials["red"] = _material(Color("#cb2837"),0.76)
+	_materials["concrete"] = SurfaceFinish.concrete()
 
 func _build_terrain() -> void:
 	# Ground extends beyond the camera far plane; hills have real depth.
@@ -191,20 +192,39 @@ func _build_terrain() -> void:
 	ground.material_override = _materials.grass
 	add_child(ground)
 	_add_collision_box(Vector3(300,-1.07,330),Vector3(16000,2,16000),"grass")
-	var hill_mesh := SphereMesh.new()
-	hill_mesh.radius = 1.0
-	hill_mesh.height = 2.0
-	hill_mesh.radial_segments = 24
-	hill_mesh.rings = 12
-	hill_mesh.material = _material(Color("#344936"),1.0)
-	var hills: Array[Transform3D] = []
-	for index in 28:
-		var angle := TAU * float(index) / 28.0
-		var radius := 1950.0 + 310.0 * sin(float(index) * 1.7)
-		var point := Vector3(300 + cos(angle) * radius,-70,330 + sin(angle) * radius)
-		var scale_value := Vector3(330 + (index % 4) * 80,125 + (index % 5) * 28,330)
-		hills.append(Transform3D(Basis.IDENTITY.scaled(scale_value),point))
-	_add_multimesh("DistantRollingHills",hill_mesh,hills)
+	# Continuous ridged heightfield with a flat circuit basin, not spherical props.
+	var noise := FastNoiseLite.new()
+	noise.seed = 2947
+	noise.frequency = 0.00055
+	noise.fractal_octaves = 4
+	var terrain := SurfaceTool.new()
+	terrain.begin(Mesh.PRIMITIVE_TRIANGLES)
+	terrain.set_smooth_group(0)
+	var grid := 192
+	for z in grid:
+		for x in grid:
+			# Godot uses clockwise front faces. Upward-facing triangles are
+			# essential for smooth lighting and a solid, visible mountain surface.
+			for corner in [Vector2i(0,0),Vector2i(1,0),Vector2i(0,1),Vector2i(1,0),Vector2i(1,1),Vector2i(0,1)]:
+				var point := Vector3(-5100.0 + (x + corner.x) * 60,0,-5100.0 + (z + corner.y) * 60)
+				var distance := Vector2((point.x - 350) / 1.15,point.z - 330).length()
+				var rise := smoothstep(900,1600,distance)
+				var ridge := 1.0 - absf(noise.get_noise_2d(point.x,point.z))
+				point.y = -0.12 + rise * (30 + pow(ridge,2) * 210 + noise.get_noise_2d(point.x * 3.0,point.z * 3.0) * 30)
+				terrain.set_color(Color(0.60,0.69,0.51).lerp(Color(0.69,0.65,0.55),smoothstep(170,330,point.y)))
+				terrain.add_vertex(point)
+	terrain.index()
+	terrain.generate_normals()
+	var landscape := MeshInstance3D.new()
+	landscape.name = "SculptedLandscape360"
+	landscape.mesh = terrain.commit()
+	var material := ShaderMaterial.new()
+	material.shader = preload("res://materials/landscape.gdshader")
+	material.set_shader_parameter("grass_map",load("res://assets/textures/grass_ground_diffuse.jpg"))
+	material.set_shader_parameter("rock_map",load("res://assets/textures/gravel_floor_diffuse.jpg"))
+	landscape.material_override = material
+	add_child(landscape)
+	_add_collision_shape("LandscapeCollision",landscape.mesh.create_trimesh_shape(),"grass")
 
 func _build_road() -> void:
 	_add_ribbon("AsphaltContinuous",-road_half_width,road_half_width,ROAD_Y,_materials.asphalt,"asphalt")
@@ -227,8 +247,8 @@ func _add_ribbon(node_name: String,left_offset: float,right_offset: float,y: flo
 		var wrapped := index % centerline.size()
 		var progress := total_length if index == centerline.size() else _cumulative_lengths[index]
 		var center := centerline[wrapped] + Vector3.UP * y
-		vertices.append(center + _normals[wrapped] * left_offset)
-		vertices.append(center + _normals[wrapped] * right_offset)
+		vertices.append(center + _normals[wrapped] * safe_ribbon_offset(wrapped,left_offset))
+		vertices.append(center + _normals[wrapped] * safe_ribbon_offset(wrapped,right_offset))
 		normals.append(Vector3.UP)
 		normals.append(Vector3.UP)
 		uvs.append(Vector2(left_offset,progress))
@@ -330,15 +350,25 @@ func _build_checkpoints() -> void:
 		add_child(area)
 		checkpoints.append(area)
 
+func safe_ribbon_offset(index: int, requested: float) -> float:
+	var previous := posmod(index - 1, centerline.size())
+	var next := (index + 1) % centerline.size()
+	var incoming := (centerline[index] - centerline[previous]).normalized()
+	var outgoing := (centerline[next] - centerline[index]).normalized()
+	var bend := incoming.signed_angle_to(outgoing,Vector3.UP) / maxf(0.01,(_segment_lengths[previous] + _segment_lengths[index]) * 0.5)
+	if bend * requested < 0.0:
+		return signf(requested) * minf(absf(requested),0.88 / maxf(absf(bend),0.0001))
+	return requested
+
 func _build_circuit_furniture() -> void:
 	var rail_mesh := BoxMesh.new()
-	rail_mesh.size = Vector3(0.22,0.3,8.15)
+	rail_mesh.size = Vector3(0.18,0.28,1)
 	rail_mesh.material = _materials.steel
 	var post_mesh := BoxMesh.new()
-	post_mesh.size = Vector3(0.17,3.0,0.17)
+	post_mesh.size = Vector3(0.10,3.3,0.10)
 	post_mesh.material = _materials.steel
 	var wire_mesh := BoxMesh.new()
-	wire_mesh.size = Vector3(0.035,0.035,8.15)
+	wire_mesh.size = Vector3(0.018,0.018,1)
 	wire_mesh.material = _materials.steel
 	var rails: Array[Transform3D] = []
 	var posts: Array[Transform3D] = []
@@ -346,60 +376,77 @@ func _build_circuit_furniture() -> void:
 	var barrier_body := StaticBody3D.new()
 	barrier_body.name = "PhysicalArmcoPerimeter"
 	barrier_body.collision_layer = 1
-	barrier_body.collision_mask = 2
-	barrier_body.set_meta("surface_type","barrier")
+	barrier_body.collision_mask = 6
 	barrier_body.set_meta("barrier",true)
 	add_child(barrier_body)
-	for index in int(total_length / 8.0):
-		var sample := sample_at_distance(float(index) * 8.0)
-		var facing := Basis.looking_at(sample.tangent,Vector3.UP)
-		for side in [-1.0,1.0]:
-			var point: Vector3 = sample.position + sample.normal * float(side) * (road_half_width + kerb_width + 17.0)
-			if not _clears_track(point,sample.tangent,4,2):
-				continue
-			if point.z > 18 and point.z < 70 and point.x > -100 and point.x < 280:
-				continue
-			for height in [0.47,0.83]:
-				rails.append(Transform3D(facing,point + Vector3.UP * float(height)))
-			posts.append(Transform3D(facing,point + Vector3.UP * 1.5))
-			for height in [1.3,1.8,2.3,2.8]:
-				wires.append(Transform3D(facing,point + Vector3.UP * float(height)))
-			var collision := CollisionShape3D.new()
-			var shape := BoxShape3D.new()
-			shape.size = Vector3(0.35,1,8.1)
-			collision.shape = shape
-			collision.transform = Transform3D(facing,point + Vector3.UP * 0.5)
-			barrier_body.add_child(collision)
-	_add_multimesh("ContinuousArmcoRails",rail_mesh,rails,650)
-	_add_multimesh("CatchFencePosts",post_mesh,posts,500)
-	_add_multimesh("CatchFenceWires",wire_mesh,wires,350)
+	var route := PackedVector2Array()
+	for point in centerline:
+		route.append(Vector2(point.x,point.z))
+	# Polygon buffering joins sharp corners and resolves intersecting offset loops.
+	for side in [-1.0,1.0]:
+		var outlines := Geometry2D.offset_polygon(route, side * (road_half_width + kerb_width + 17), Geometry2D.JOIN_ROUND)
+		for outline in outlines:
+			var points := PackedVector3Array()
+			var remaining := 0.0
+			for index in outline.size():
+				var a := outline[index]
+				var b := outline[(index + 1) % outline.size()]
+				var length := a.distance_to(b)
+				while remaining < length:
+					var q := a.lerp(b,remaining / maxf(length,0.0001))
+					points.append(Vector3(q.x,0,q.y))
+					remaining += 4.0
+				remaining -= length
+			for index in points.size():
+				var a := points[index]
+				var b := points[(index+1) % points.size()]
+				var length := a.distance_to(b)
+				if length < 0.01:
+					continue
+				var basis := Basis.looking_at((b-a).normalized())
+				var scaled := basis.scaled_local(Vector3(1,1,length + 0.025))
+				var middle := (a+b) * 0.5
+				for height in [0.42,0.75,1.08]:
+					rails.append(Transform3D(scaled,middle + Vector3.UP * height))
+				posts.append(Transform3D(basis,a + Vector3.UP * 1.65))
+				for height in [1.35,1.65,1.95,2.25,2.55,2.85,3.15]:
+					wires.append(Transform3D(scaled,middle + Vector3.UP * height))
+				var collider := CollisionShape3D.new()
+				var shape := BoxShape3D.new()
+				shape.size = Vector3(0.22,1.3,length + 0.025)
+				collider.shape = shape
+				collider.transform = Transform3D(basis,middle + Vector3.UP * 0.65)
+				barrier_body.add_child(collider)
+	_add_multimesh("ContinuousArmcoRails",rail_mesh,rails,850)
+	_add_multimesh("CatchFencePosts",post_mesh,posts,650)
+	_add_multimesh("CatchFenceWires",wire_mesh,wires,400)
 	for zone in drs_zones:
-		_add_distance_board(zone.x,"DRS",Color("#39cbb3"))
-		_add_distance_board(zone.y,"DRS END",Color("#e3e0cd"))
-	for index in 2:
-		_add_distance_board(sector_distances[index],"SECTOR %d" % (index + 2),Color("#efce65"))
+		for distance in [zone.x,zone.y]:
+			var sample := sample_at_distance(distance)
+			var line := _add_box(self,sample.position + Vector3.UP * 0.014,Vector3(road_half_width * 2,0.012,0.32),_materials.white)
+			line.name = "PaintedDRSLine"
+			line.add_to_group("track_markings")
+			line.basis = Basis.looking_at(sample.tangent)
 	var last_corner := -200.0
 	for index in int(total_length / 12.0):
-		var distance_value := float(index) * 12.0
-		if curvature_at(distance_value) > 0.015 and distance_value - last_corner > 110:
+		var distance := float(index) * 12.0
+		if curvature_at(distance) > 0.015 and distance - last_corner > 150:
 			for metres in [150,100,50]:
-				_add_distance_board(distance_value - float(metres),str(metres),Color("#e7e5d9"))
-			last_corner = distance_value
-	for index in 20:
-		var sample := sample_at_distance(float(index) * total_length / 20 + 35)
-		var point: Vector3 = sample.position + sample.normal * (road_half_width + kerb_width + 20)
-		if not _clears_track(point,sample.tangent,6,3):
+				_add_distance_board(distance-float(metres),str(metres),Color.BLACK)
+			last_corner = distance
+	for index in 36:
+		var sample := sample_at_distance(float(index) * total_length / 36 + 35)
+		var point: Vector3 = sample.position + sample.normal * (road_half_width + kerb_width + 13)
+		if not _clears_track(point,sample.tangent,7,2):
 			continue
 		var board := Node3D.new()
-		board.name = "CircuitSponsorBoard"
-		board.transform = Transform3D(Basis.looking_at(-sample.normal,Vector3.UP),point)
+		board.name = "SponsorBarrier"
+		board.transform = Transform3D(Basis.looking_at(sample.normal),point)
 		add_child(board)
-		_add_box(board,Vector3(0,1.15,0),Vector3(11,2.2,0.25),_materials.teal)
-		_add_label(board,"APEX  /  CIRCUIT",Vector3(0,1.2,0.15),0.027,Color("#f5f2dc"))
-		if index % 4 == 0:
-			_add_box(board,Vector3(7,1.45,-2),Vector3(3.4,2.9,3),_materials.white)
-			_add_box(board,Vector3(7,3.03,-2),Vector3(4,0.22,3.6),_materials.teal)
-			_add_box(board,Vector3(7,2,-0.47),Vector3(2.6,0.7,0.03),_materials.dark)
+		_add_box(board,Vector3(0,0.85,0),Vector3(12,1.7,0.6),_materials.dark)
+		for panel in 3:
+			SponsorIdentity.panel(board,1 + index % 7,Vector2(3.2,1.6),Transform3D(Basis.IDENTITY,Vector3(-4 + panel * 4,0.85,0.308)))
+		_add_oriented_collision(board,Vector3(0,0.85,0),Vector3(12,1.7,0.6))
 
 func _build_paddock_and_grandstands() -> void:
 	var paddock := Node3D.new()
@@ -410,12 +457,19 @@ func _build_paddock_and_grandstands() -> void:
 	var glass := _material(Color("#263e48"),0.2,0.4)
 	for index in 13:
 		var x := -30.0 + float(index) * 17
-		_add_box(paddock,Vector3(x,2.9,53),Vector3(16.5,5.8,18),_materials.white)
+		if not _clears_track(Vector3(x,0,53),Vector3.RIGHT,8.6,10):
+			continue
+		_add_box(paddock,Vector3(x,2.9,53),Vector3(16.5,5.8,18),_materials.concrete)
+		_add_oriented_collision(paddock,Vector3(x,4.2,53),Vector3(16.5,8.4,18))
+		for joint in 9:
+			_add_box(paddock,Vector3(x - 6.5 + joint * 1.6,1.9,43.87),Vector3(0.035,3.7,0.02),_materials.steel)
+		for panel in 2:
+			SponsorIdentity.panel(paddock,1 + index % 7,Vector2(3.0,1.5),Transform3D(Basis(Vector3.UP,PI),Vector3(x - 4 + panel * 8,4.85,43.73)))
 		_add_box(paddock,Vector3(x,1.9,43.94),Vector3(13.8,3.8,0.1),_materials.dark)
 		_add_box(paddock,Vector3(x,4.8,43.82),Vector3(15.5,1,0.1),_materials.teal if index % 2 == 0 else _materials.red)
 		_add_box(paddock,Vector3(x,5.95,51),Vector3(17,0.28,22),_materials.dark)
 		_add_box(paddock,Vector3(x,7.2,55),Vector3(15.5,2.3,13),glass)
-		var label := _add_label(paddock,"%02d / APEX MOTORSPORT" % (index + 1),Vector3(x,4.82,43.73),0.017,Color("#f8f0d6"))
+		var label := _add_label(paddock,"%02d" % (index + 1),Vector3(x,4.82,43.73),0.012,Color("#f8f0d6"))
 		label.rotation.y = PI
 		_add_box(paddock,Vector3(x,0.03,32),Vector3(0.14,0.015,10),_materials.white)
 	_add_box(paddock,Vector3(84,0.65,21.3),Vector3(252,1.3,0.4),_materials.white)
@@ -428,6 +482,9 @@ func _build_paddock_and_grandstands() -> void:
 	seat_mesh.size = Vector3(0.62,0.18,0.75)
 	seat_mesh.material = _materials.red
 	var seats: Array[Transform3D] = []
+	var spectators: Dictionary = {}
+	for variant in 6:
+		spectators[variant] = []
 	for index in stand_data.size():
 		var data: Vector2 = stand_data[index]
 		var sample := sample_at_distance(total_length * data.x)
@@ -438,64 +495,131 @@ func _build_paddock_and_grandstands() -> void:
 			continue
 		var stand := Node3D.new()
 		stand.name = "Grandstand_%d" % index
-		stand.transform = Transform3D(Basis.looking_at(sample.normal * data.y,Vector3.UP),point)
+		stand.transform = Transform3D(Basis.looking_at(-sample.normal * data.y,Vector3.UP),point)
 		add_child(stand)
 		for row in 8:
-			_add_box(stand,Vector3(0,0.5 + row * 0.65,-6 + row * 1.6),Vector3(48,0.8,1.7),_materials.white)
+			_add_box(stand,Vector3(0,0.5 + row * 0.65,-6 + row * 1.6),Vector3(48,0.8,1.7),_materials.concrete)
 			for seat in 30:
 				var seat_point := Vector3(-22.3 + seat * 1.52,1.1 + row * 0.65,-5.8 + row * 1.6)
 				seats.append(stand.transform * Transform3D(Basis.IDENTITY,seat_point))
+				if (seat * 7 + row * 3 + index) % 11 < 8:
+					var variant := (seat + row * 3 + index) % 6
+					var turn := sin(float(seat * 3 + row)) * 0.12
+					spectators[variant].append(stand.transform * Transform3D(Basis(Vector3.UP,turn),seat_point + Vector3(0,0.06,0)))
 		for x in [-25.0,0.0,25.0]:
 			_add_box(stand,Vector3(x,5,6),Vector3(0.38,10,0.38),_materials.steel)
 		_add_box(stand,Vector3(0,10,1.5),Vector3(53,0.35,19),_materials.dark)
 		_add_box(stand,Vector3(0,9.35,-8),Vector3(52,1,0.15),_materials.teal)
-		var label := _add_label(stand,"APEX CIRCUIT / ORIGINAL GRAND PRIX",Vector3(0,9.38,-8.12),0.042,Color("#f2ebcd"))
-		label.rotation.y = PI
-	_add_multimesh("GrandstandSeats",seat_mesh,seats,450)
+		for sponsor in 7:
+			SponsorIdentity.panel(stand,(sponsor + index) % 8,Vector2(2.8,1.4),Transform3D(Basis(Vector3.UP,PI),Vector3(-22 + sponsor * 7.3,9.35,-8.12)))
+		for support in [-20.0,0.0,20.0]:
+			_add_oriented_collision(stand,Vector3(support,4,3),Vector3(0.5,8,0.5))
+		for row in 8:
+			_add_oriented_collision(stand,Vector3(0,0.5 + row * 0.65,-6 + row * 1.6),Vector3(48,0.8,1.7))
+	_add_multimesh("GrandstandSeats",seat_mesh,seats,550)
+	for variant in 6:
+		var poses: Array[Transform3D] = []
+		poses.assign(spectators[variant])
+		_add_multimesh("Spectators_%d" % variant,preload("res://tracks/scenery_models.gd").spectator(variant),poses,300)
+	_build_paddock_detail()
 
 func _build_vegetation() -> void:
+	var models := preload("res://tracks/scenery_models.gd")
+	var scanned := models.scanned_trees()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 41731
-	var trunks: Array[Transform3D] = []
-	var canopies: Array[Transform3D] = []
-	var bushes: Array[Transform3D] = []
-	for index in 1100:
-		var point := Vector3(rng.randf_range(-700,1650),0,rng.randf_range(-520,1420))
-		if float(progress_at(point).distance) < road_half_width + kerb_width + 25:
+	var accepted: Array[Vector3] = []
+	for variant in 8:
+		var trees: Array[Transform3D] = []
+		for attempt in 70:
+			if trees.size() >= 10:
+				break
+			var sample := sample_at_distance(rng.randf_range(0,total_length))
+			var point: Vector3 = sample.position + sample.normal * (-1.0 if rng.randf() < 0.5 else 1.0) * rng.randf_range(50,135)
+			if float(progress_at(point).distance) < road_half_width + kerb_width + 28 or _in_gravel(point):
+				continue
+			if point.x > -130 and point.x < 340 and point.z > -110 and point.z < 110:
+				continue
+			var clear := true
+			for other in accepted:
+				if other.distance_squared_to(point) < 18.0 * 18.0:
+					clear = false
+			if not clear:
+				continue
+			accepted.append(point)
+			var scale_value := rng.randf_range(0.85,1.3) * (2.2 if variant % 4 == 0 else 5.0)
+			trees.append(Transform3D(Basis(Vector3.UP,rng.randf() * TAU).scaled(Vector3.ONE * scale_value),point))
+		_add_multimesh("ScannedTree_%d" % variant,scanned[variant % scanned.size()],trees,1200)
+
+func _build_paddock_detail() -> void:
+	var concrete := SurfaceFinish.concrete()
+	var glass := _material(Color("324c61"),0.12,0.65)
+	# Race-control tower with cantilevered floors, glazing, mullions and roof plant.
+	var tower := Node3D.new()
+	tower.name = "RaceControlTower"
+	tower.position = Vector3(-67,0,61)
+	add_child(tower)
+	for floor_index in 4:
+		var y := 2.5 + floor_index * 3.2
+		var width := 16.0 + floor_index * 1.2
+		_add_box(tower,Vector3(0,y,0),Vector3(width,2.8,15),glass if floor_index > 0 else concrete)
+		_add_box(tower,Vector3(0,y + 1.5,0),Vector3(width + 1,0.3,16),_materials.white)
+		for bar in 8:
+			_add_box(tower,Vector3(-width * 0.45 + bar * width * 0.13,y,-7.55),Vector3(0.09,2.8,0.1),_materials.steel)
+	_add_oriented_collision(tower,Vector3(0,7,0),Vector3(21,14,16))
+	SponsorIdentity.panel(tower,0,Vector2(5.0,2.5),Transform3D(Basis(Vector3.UP,PI),Vector3(0,13.1,-8.1)))
+	for index in 10:
+		var x := -25.0 + index * 24
+		# Service buildings alternate roof heights, facade rhythms and footprint.
+		var height := 3.8 + (index % 3) * 1.1
+		var origin := Vector3(x,0,-112 - (index % 2) * 12)
+		if not _clears_track(origin,Vector3.RIGHT,10,7):
 			continue
-		if point.x > -100 and point.x < 300 and point.z > -85 and point.z < 95:
+		var building := Node3D.new()
+		building.name = "TeamServiceBuilding_%d" % index
+		building.position = origin
+		add_child(building)
+		_add_box(building,Vector3(0,height * 0.5,0),Vector3(18,height,12),concrete)
+		_add_box(building,Vector3(0,height + 0.16,0),Vector3(19,0.32,13),_materials.dark)
+		_add_oriented_collision(building,Vector3(0,height * 0.5,0),Vector3(18,height,12))
+		for window in 5:
+			_add_box(building,Vector3(-6.8 + window * 3.4,height * 0.56,-6.05),Vector3(2.5,1.6,0.1),glass)
+		for vent in 3:
+			_add_box(building,Vector3(-4 + vent * 4,height + 0.7,1),Vector3(2.4,1,2),_materials.steel)
+			for slat in 5:
+				_add_box(building,Vector3(-4 + vent * 4,height + 0.37 + slat * 0.15,-0.03),Vector3(2.25,0.04,0.04),_materials.dark)
+	# Trackside marshal stations, tyre stacks, lighting poles and access walkways.
+	var tyre_mesh := TorusMesh.new()
+	tyre_mesh.inner_radius = 0.20
+	tyre_mesh.outer_radius = 0.36
+	tyre_mesh.rings = 16
+	tyre_mesh.ring_segments = 8
+	tyre_mesh.material = _material(Color("272b2d"),0.92)
+	var tyres: Array[Transform3D] = []
+	var marshals: Array[Transform3D] = []
+	for index in 14:
+		var sample := sample_at_distance(index * total_length / 14.0 + 90)
+		var position: Vector3 = sample.position + sample.normal * 42
+		if not _clears_track(position,sample.tangent,5,5):
 			continue
-		if _in_gravel(point):
-			continue
-		var height := rng.randf_range(5,13)
-		var size := rng.randf_range(2.2,4.8)
-		trunks.append(Transform3D(Basis.IDENTITY.scaled(Vector3(0.28,height * 0.55,0.28)),point + Vector3.UP * height * 0.275))
-		for crown in 3:
-			var offset := Vector3(rng.randf_range(-1.4,1.4),height * 0.6 + crown * 0.7,rng.randf_range(-1.4,1.4))
-			canopies.append(Transform3D(Basis.IDENTITY.scaled(Vector3(size,size * 1.1,size)),point + offset))
-		if index % 4 == 0:
-			bushes.append(Transform3D(Basis.IDENTITY.scaled(Vector3(2.8,1.5,2.2)),point + Vector3(3,1,1)))
-	var trunk_mesh := CylinderMesh.new()
-	trunk_mesh.top_radius = 0.7
-	trunk_mesh.bottom_radius = 1
-	trunk_mesh.height = 1
-	trunk_mesh.radial_segments = 6
-	trunk_mesh.material = _material(Color("#504534"),0.98)
-	var crown_mesh := SphereMesh.new()
-	crown_mesh.radius = 1
-	crown_mesh.height = 2
-	crown_mesh.radial_segments = 9
-	crown_mesh.rings = 5
-	crown_mesh.material = _material(Color("#42623b"),0.95)
-	var bush_mesh := SphereMesh.new()
-	bush_mesh.radius = 1
-	bush_mesh.height = 2
-	bush_mesh.radial_segments = 8
-	bush_mesh.rings = 4
-	bush_mesh.material = _material(Color("#537042"),0.98)
-	_add_multimesh("WoodlandTrunks",trunk_mesh,trunks,1400)
-	_add_multimesh("WoodlandCanopies",crown_mesh,canopies,1400)
-	_add_multimesh("InfieldBushes",bush_mesh,bushes,650)
+		var post := Node3D.new()
+		post.name = "MarshalStation_%d" % index
+		post.transform = Transform3D(Basis.looking_at(sample.normal),position)
+		add_child(post)
+		_add_box(post,Vector3(0,1.3,0),Vector3(3.4,2.6,2.8),concrete)
+		_add_box(post,Vector3(0,2.8,0),Vector3(4.1,0.22,3.4),_materials.dark)
+		_add_box(post,Vector3(0,1.9,1.42),Vector3(2.8,0.9,0.04),glass)
+		_add_oriented_collision(post,Vector3(0,1.3,0),Vector3(3.4,2.6,2.8))
+		SponsorIdentity.panel(post,1 + index % 7,Vector2(2,1),Transform3D(Basis.IDENTITY,Vector3(0,0.7,1.42)))
+		for column in 6:
+			for row in 3:
+				tyres.append(post.transform * Transform3D(Basis.IDENTITY,Vector3(-3 + column * 0.72,0.18 + row * 0.30,3)))
+		for person in 2:
+			marshals.append(post.transform * Transform3D(Basis(Vector3.UP,PI),Vector3(-2.7 + person * 5.4,0,1.0)))
+		_add_box(post,Vector3(4.2,6,0),Vector3(0.13,12,0.13),_materials.steel)
+		_add_box(post,Vector3(4.2,12,0.3),Vector3(1.1,0.23,0.8),_materials.dark)
+	_add_multimesh("SafetyTyreStacks",tyre_mesh,tyres,400)
+	_add_multimesh("TracksideMarshals",preload("res://tracks/scenery_models.gd").spectator(1,true),marshals,250)
 
 func _build_start_finish() -> void:
 	var sample := sample_at_distance(0)
@@ -507,7 +631,12 @@ func _build_start_finish() -> void:
 		_add_box(gantry,Vector3(side * 24,3.8,0),Vector3(0.55,7.6,0.55),_materials.steel)
 		_add_box(gantry,Vector3(side * 24,0.3,0),Vector3(2,0.6,2),_materials.white)
 	_add_box(gantry,Vector3(0,7.5,0),Vector3(48.5,1.25,0.65),_materials.teal)
-	_add_label(gantry,"APEX  CIRCUIT",Vector3(0,7.5,0.34),0.071,Color("#f5ead4"))
+	_add_box(gantry,Vector3(0,8.2,0),Vector3(5.6,2.9,0.68),_materials.dark)
+	for facing in [0.0,PI]:
+		SponsorIdentity.panel(gantry,0,Vector2(5.4,2.7),Transform3D(Basis(Vector3.UP,facing),Vector3(0,8.2,0.36 if facing == 0 else -0.36)))
+		for side in [-1,1]:
+			for panel in 3:
+				SponsorIdentity.panel(gantry,1 + panel,Vector2(3.8,1.15),Transform3D(Basis(Vector3.UP,facing),Vector3(side * (6 + panel * 5),7.5,0.36 if facing == 0 else -0.36)))
 	_add_box(gantry,Vector3(0,6.1,0.08),Vector3(7.3,1.8,0.6),_materials.dark)
 	for index in 5:
 		var material := _material(Color("#300b0c"),0.24)
@@ -694,18 +823,30 @@ func _clears_track(point: Vector3,tangent: Vector3,half_length: float,half_width
 				return false
 	return true
 
-func _add_distance_board(distance_value: float,text_value: String,text_color: Color) -> void:
+func _add_distance_board(distance_value: float,text_value: String,_text_color: Color) -> void:
 	var sample := sample_at_distance(distance_value)
-	var point: Vector3 = sample.position + sample.normal * (road_half_width + kerb_width + 4.5)
-	if not _clears_track(point,sample.tangent,0.4,1.2):
+	var point: Vector3 = sample.position + sample.normal * (road_half_width + kerb_width + 2.0)
+	if not _clears_track(point,sample.tangent,0.4,0.7):
 		return
-	var board := Node3D.new()
-	board.name = "Board_" + text_value.replace(" ","_")
-	board.transform = Transform3D(Basis.looking_at(sample.tangent,Vector3.UP),point)
+	var board := BrakeBoard.new()
+	board.name = "BrakeMarker_" + text_value
+	board.metres = int(text_value)
+	board.transform = Transform3D(Basis.looking_at(sample.tangent),point)
 	add_child(board)
-	_add_box(board,Vector3(0,0.8,0),Vector3(0.09,1.6,0.09),_materials.steel)
-	_add_box(board,Vector3(0,1.9,0),Vector3(2.5,1.4,0.12),_materials.dark)
-	_add_label(board,text_value,Vector3(0,1.9,0.075),0.028,text_color)
+
+func _add_oriented_collision(parent: Node3D,point: Vector3,dimensions: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.name = "StructureCollision"
+	body.collision_layer = 1
+	body.collision_mask = 6
+	body.set_meta("barrier",true)
+	var collision := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = dimensions
+	collision.shape = shape
+	collision.position = point
+	body.add_child(collision)
+	parent.add_child(body)
 
 func _array_mesh(vertices: PackedVector3Array,normals: PackedVector3Array,uvs: PackedVector2Array,indices: PackedInt32Array) -> ArrayMesh:
 	var arrays: Array = []
@@ -722,7 +863,7 @@ func _add_collision_shape(node_name: String,shape: Shape3D,surface: String) -> v
 	var body := StaticBody3D.new()
 	body.name = node_name
 	body.collision_layer = 1
-	body.collision_mask = 2
+	body.collision_mask = 6
 	body.set_meta("surface_type",surface)
 	if surface == "barrier":
 		body.set_meta("barrier",true)
@@ -736,7 +877,7 @@ func _add_collision_box(point: Vector3,size: Vector3,surface: String) -> void:
 	body.name = surface.capitalize() + "Collision"
 	body.position = point
 	body.collision_layer = 1
-	body.collision_mask = 2
+	body.collision_mask = 6
 	body.set_meta("surface_type",surface)
 	if surface == "barrier":
 		body.set_meta("barrier",true)
@@ -795,6 +936,8 @@ func _add_multimesh(node_name: String,mesh: Mesh,transforms: Array[Transform3D],
 		node.name = node_name
 		node.position = origin
 		node.multimesh = multimesh
+		if node_name.begins_with("ScannedTree"):
+			node.lod_bias = 0.35
 		if visibility_distance > 0:
 			node.visibility_range_end = visibility_distance
 			node.visibility_range_end_margin = 70

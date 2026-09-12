@@ -20,6 +20,8 @@ var _capture_camera := 0
 var _autodrive := false
 var _frame_samples: Array[float] = []
 var _preview_driver: AIFormulaDriver
+var _sun: DirectionalLight3D
+var _sun_clock := 0.0
 
 func _ready() -> void:
 	CircuitInput.install()
@@ -51,6 +53,8 @@ func _ready() -> void:
 	menu.time_trial_requested.connect(_start_time_trial)
 	menu.quit_requested.connect(func() -> void: get_tree().quit())
 	_return_to_menu()
+	add_to_group("graphics_settings")
+	apply_graphics_settings()
 	var practice := PracticeTools.new()
 	add_child(practice)
 	practice.setup(self)
@@ -60,25 +64,21 @@ func _ready() -> void:
 func _build_environment() -> void:
 	world_environment = WorldEnvironment.new()
 	var environment := Environment.new()
-	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color("#4277a8")
-	sky_material.sky_horizon_color = Color("#bdd0d7")
-	sky_material.ground_bottom_color = Color("#4e6150")
-	sky_material.ground_horizon_color = Color("#bcc8bd")
-	sky_material.sky_curve = 0.65
-	sky_material.sun_angle_max = 3.0
+	var sky_material := PanoramaSkyMaterial.new()
+	sky_material.panorama = load("res://assets/hdris/partly_cloudy_2k.hdr")
+	sky_material.energy_multiplier = 0.85
 	var sky := Sky.new()
 	sky.sky_material = sky_material
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_energy = 0.62
+	environment.ambient_light_energy = 0.47
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	environment.tonemap_white = 6.0
 	environment.tonemap_exposure = 1.0
 	environment.glow_enabled = true
-	environment.glow_intensity = 0.22
+	environment.glow_intensity = 0.16
 	environment.ssao_enabled = true
 	environment.ssao_radius = 1.0
 	environment.ssao_intensity = 1.1
@@ -91,14 +91,49 @@ func _build_environment() -> void:
 	world_environment.environment = environment
 	add_child(world_environment)
 	var sun := DirectionalLight3D.new()
+	_sun = sun
 	sun.name = "AfternoonSun"
 	sun.rotation_degrees = Vector3(-38.0, -32.0, 0.0)
-	sun.light_energy = 1.65
+	sun.light_energy = 1.85
+	sun.light_angular_distance = 0.53
+	sun.shadow_bias = 0.035
+	sun.shadow_normal_bias = 1.2
 	sun.light_color = Color("#fff2d9")
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 180.0
+	sun.directional_shadow_max_distance = 260.0
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_fade_start = 0.80
 	add_child(sun)
+	var reflection := ReflectionProbe.new()
+	reflection.name = "PaddockReflectionCapture"
+	reflection.position = Vector3(90,5,25)
+	reflection.size = Vector3(420,45,130)
+	reflection.max_distance = 280
+	reflection.box_projection = true
+	reflection.cull_mask = 1
+	reflection.update_mode = ReflectionProbe.UPDATE_ONCE
+	add_child(reflection)
+
+func apply_graphics_settings() -> void:
+	var quality := GameState.graphics_quality
+	var environment := world_environment.environment
+	var gpu := DisplayServer.get_name() != "headless"
+	environment.ssao_enabled = quality >= 1 and gpu
+	environment.ssil_enabled = quality >= 1 and gpu
+	environment.ssil_intensity = 0.45
+	environment.ssr_enabled = quality >= 1 and gpu
+	environment.ssr_max_steps = 48 if quality == 1 else 80
+	environment.sdfgi_enabled = quality == 2 and gpu
+	environment.sdfgi_min_cell_size = 1.2
+	environment.sdfgi_use_occlusion = true
+	environment.sdfgi_read_sky_light = true
+	environment.volumetric_fog_enabled = quality >= 1 and gpu
+	environment.volumetric_fog_density = 0.00035
+	environment.volumetric_fog_albedo = Color("c9d9e2")
+	environment.volumetric_fog_length = 320
+	environment.volumetric_fog_sky_affect = 0.18
+	get_viewport().scaling_3d_scale = 0.80 if quality == 0 else (0.90 if quality == 1 else 1.0)
+	get_viewport().msaa_3d = Viewport.MSAA_2X if quality < 2 else Viewport.MSAA_4X
 
 func _session_started(mode: int) -> void:
 	match mode:
@@ -118,6 +153,7 @@ func _build_field() -> void:
 		car.player_controlled = index == 0
 		car.driver_name = names[index % names.size()]
 		car.livery_color = Color(colors[index % colors.size()])
+		car.livery_index = index
 		car.track = track
 		if ResourceLoader.exists("res://assets/cars/formula_car.tscn"):
 			car.visual_scene = load("res://assets/cars/formula_car.tscn")
@@ -244,10 +280,17 @@ func _read_run_arguments() -> void:
 			_capture_after = float(argument.trim_prefix("--capture-after="))
 		elif argument.begins_with("--camera="):
 			_capture_camera = int(argument.trim_prefix("--camera="))
+		elif argument == "--ui=settings":
+			menu._show_settings()
+		elif argument == "--ui=credits":
+			menu._show_credits()
+		elif argument.begins_with("--quality="):
+			GameState.graphics_quality = clampi(int(argument.trim_prefix("--quality=")),0,2)
+			apply_graphics_settings()
 		elif argument == "--autodrive":
 			_autodrive = true
 	if GameState.mode != GameState.Mode.MENU:
-		player_car.set_camera_mode(_capture_camera)
+		player_car.set_camera_mode(0 if _capture_camera == 3 else _capture_camera)
 		if _capture_camera == 3:
 			var inspection := Camera3D.new()
 			add_child(inspection)
@@ -261,6 +304,9 @@ func _read_run_arguments() -> void:
 			drivers[0].reset_session()
 
 func _process(delta: float) -> void:
+	if not GameState.paused:
+		_sun_clock += delta
+		_sun.rotation_degrees = Vector3(-38.0 + sin(_sun_clock * 0.00035) * 6.0,-32.0 + _sun_clock * 0.0015,0)
 	if _capture_path.is_empty():
 		return
 	_capture_elapsed += delta
