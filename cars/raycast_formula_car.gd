@@ -338,6 +338,9 @@ func _set_camera_state(cockpit: bool) -> void:
 func is_cockpit_camera() -> bool:
 	return _cockpit_active
 
+func activate_chase_camera() -> void:
+	_set_camera_state(false)
+
 func all_wheels_legal() -> bool:
 	if track == null:
 		return true

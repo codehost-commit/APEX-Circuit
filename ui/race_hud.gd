@@ -35,6 +35,7 @@ func setup(track_value: CircuitTrack, cars_value: Array[RaycastFormulaCar]) -> v
 		minimap.setup(circuit, field)
 
 func _process(delta: float) -> void:
+	visible = GameState.mode != GameState.Mode.MENU
 	if Input.is_action_just_pressed("pause") and GameState.mode != GameState.Mode.MENU:
 		GameState.paused = not GameState.paused
 		_show_message("PAUSED" if GameState.paused else "RESUMED", "ESC to continue", 2.0)

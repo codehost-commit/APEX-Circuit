@@ -28,6 +28,15 @@ func setup(track_value: CircuitTrack, field: Array[RaycastFormulaCar]) -> void:
 	EventBus.incident.connect(_note_incident)
 	_create_start_lights()
 
+func start_preview() -> void:
+	GameState.reset_to_menu()
+	green = false
+	qualifying_active = false
+	for car in cars:
+		car.race_enabled = true
+		car.finished = false
+		car.drs_available = false
+
 func start_race(from_qualifying := false) -> void:
 	qualifying_active = false
 	if from_qualifying:

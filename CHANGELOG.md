@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Phase 6: cinematic menu over the live AI field, alternating kerb/aerial drone shots with fade cuts, and Qualifying/Race/Quit flow into the real session.
 - Phase 5: live HUD, timing/leaderboard/minimap, penalty and incident messages, start lights, results panel, plus cockpit-only steering-wheel/shift-LED display.
 - Phase 4: qualifying/grid flow, five-light launch, valid lap/sector timing, DRS detection/zones, live classification, collision attribution, deferred penalties, track limits, recovery, and finish state.
 - Phase 3: curvature-aware racing-line speed envelope, pure-pursuit AI field, lane-smoothing, passing/defending and side-by-side anti-encroachment corridor.

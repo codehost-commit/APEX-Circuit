@@ -45,6 +45,9 @@ extends Node
 @export var kerb_width := 2.2
 @export var preview_camera_cut_min := 15.0
 @export var preview_camera_cut_max := 29.0
+@export var menu_fade_seconds := 0.55
+@export var menu_low_shot_follow := 1.8
+@export var menu_aerial_shot_follow := 0.42
 
 @export_category("Performance")
 @export var menu_ai_count := 8

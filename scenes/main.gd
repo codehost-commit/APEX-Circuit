@@ -7,6 +7,8 @@ var all_cars: Array[RaycastFormulaCar] = []
 var _ai_profile: RacingLineProfile
 var race_director: RaceDirector
 var hud: RaceHUD
+var menu: ApexMenu
+var menu_cinematic: MenuCinematic
 
 func _ready() -> void:
 	_setup_input_map()
@@ -31,11 +33,19 @@ func _ready() -> void:
 	race_director.name = "RaceDirector"
 	add_child(race_director)
 	race_director.setup(track, all_cars)
-	race_director.start_race()
 	GameState.race_director = race_director
 	hud = RaceHUD.new()
 	add_child(hud)
 	hud.setup(track, all_cars)
+	menu_cinematic = MenuCinematic.new()
+	add_child(menu_cinematic)
+	menu_cinematic.setup(track, all_cars)
+	menu = ApexMenu.new()
+	add_child(menu)
+	menu.qualifying_requested.connect(_start_qualifying)
+	menu.race_requested.connect(_start_race)
+	menu.quit_requested.connect(func() -> void: get_tree().quit())
+	race_director.start_preview()
 	print("APEX Circuit booted: Forward+ project, Jolt configured, game systems loading.")
 
 func _build_environment() -> void:
@@ -82,6 +92,18 @@ func _spawn_ai_field() -> void:
 		driver.driver_seed = index + 17
 		add_child(driver)
 		driver.setup(all_cars[index + 1], track, _ai_profile, all_cars)
+
+func _start_qualifying() -> void:
+	menu.visible = false
+	menu_cinematic.set_active(false)
+	player_car.activate_chase_camera()
+	race_director.start_qualifying()
+
+func _start_race() -> void:
+	menu.visible = false
+	menu_cinematic.set_active(false)
+	player_car.activate_chase_camera()
+	race_director.start_race()
 
 func _setup_input_map() -> void:
 	var bindings := {
