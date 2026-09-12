@@ -21,6 +21,7 @@ var lateral_g := 0.0
 var tyre_smoke_strength := 0.0
 var damage := 0.0
 var drs_open := false
+var drs_available := false
 var current_surface := "asphalt"
 var track: Node
 var race_enabled := false
@@ -289,7 +290,7 @@ func _update_player_inputs(delta: float) -> void:
 	steering_input = move_toward(steering_input, steer_target, (tuning.steering_input_rise if absf(steer_target) > absf(steering_input) else tuning.steering_input_fall) * delta)
 	throttle_input = move_toward(throttle_input, throttle_target, 4.5 * delta)
 	brake_input = move_toward(brake_input, brake_target, 6.5 * delta)
-	drs_open = Input.is_action_pressed("drs") and race_enabled
+	drs_open = Input.is_action_pressed("drs") and drs_available and race_enabled
 	var shift_up := Input.is_action_pressed("shift_up")
 	var shift_down := Input.is_action_pressed("shift_down")
 	if shift_up and not _last_shift_up and _shift_cut <= 0.0:
@@ -304,7 +305,7 @@ func _update_ai_inputs(delta: float) -> void:
 	steering_input = move_toward(steering_input, float(ai_command.steer), tuning.steering_input_rise * delta)
 	throttle_input = move_toward(throttle_input, float(ai_command.throttle), 5.0 * delta)
 	brake_input = move_toward(brake_input, float(ai_command.brake), 7.0 * delta)
-	drs_open = bool(ai_command.drs) and race_enabled
+	drs_open = bool(ai_command.drs) and drs_available and race_enabled
 	_update_steering(delta)
 
 func _update_steering(delta: float) -> void:
@@ -356,7 +357,7 @@ func reset_to_pose(pose: Transform3D) -> void:
 	finished = false
 
 func _on_body_entered(body: Node) -> void:
-	if body is RaycastFormulaCar:
+	if race_enabled and body is RaycastFormulaCar:
 		var closing := maxf(0.0, (linear_velocity - body.linear_velocity).length())
 		if closing > 5.0:
 			damage = clampf(damage + closing * 0.003, 0.0, 1.0)

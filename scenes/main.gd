@@ -5,6 +5,7 @@ var track: CircuitTrack
 var player_car: RaycastFormulaCar
 var all_cars: Array[RaycastFormulaCar] = []
 var _ai_profile: RacingLineProfile
+var race_director: RaceDirector
 
 func _ready() -> void:
 	_setup_input_map()
@@ -25,6 +26,12 @@ func _ready() -> void:
 	GameState.player_car = player_car
 	all_cars.append(player_car)
 	_spawn_ai_field()
+	race_director = RaceDirector.new()
+	race_director.name = "RaceDirector"
+	add_child(race_director)
+	race_director.setup(track, all_cars)
+	race_director.start_race()
+	GameState.race_director = race_director
 	print("APEX Circuit booted: Forward+ project, Jolt configured, game systems loading.")
 
 func _build_environment() -> void:

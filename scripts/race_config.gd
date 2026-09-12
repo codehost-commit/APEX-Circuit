@@ -14,6 +14,29 @@ extends Node
 @export var start_light_max_hold := 4.8
 @export var incident_delay_min := 15.0
 @export var incident_delay_max := 30.0
+@export var start_light_step_seconds := 0.85
+@export var qualifying_duration := 180.0
+@export var qualifying_variance_low := 0.985
+@export var qualifying_variance_high := 1.025
+@export var ai_estimated_lap_speed := 56.0
+@export var lap_wrap_before := 0.85
+@export var lap_wrap_after := 0.15
+@export var track_limit_min_seconds := 0.40
+@export var track_limits_penalty_seconds := 5.0
+@export var recovery_min_speed := 2.0
+@export var recovery_penalty_seconds := 10.0
+@export var penalty_light_seconds := 3.0
+@export var penalty_firm_seconds := 5.0
+@export var penalty_heavy_seconds := 10.0
+@export var penalty_firm_threshold := 0.32
+@export var penalty_heavy_threshold := 0.68
+@export var incident_end_delay := 2.0
+@export var incident_message_seconds := 2.2
+@export var penalty_message_seconds := 3.0
+@export var drs_detection_start := 350.0
+@export var drs_detection_window := 18.0
+@export var drs_zone_start := 472.0
+@export var drs_min_reference_speed := 25.0
 
 @export_category("World")
 @export var gravity := 9.81
