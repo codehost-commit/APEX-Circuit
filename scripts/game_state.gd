@@ -1,0 +1,28 @@
+extends Node
+## Session state deliberately stays tiny. Systems communicate through EventBus.
+
+enum Mode { MENU, QUALIFYING, RACE, RESULTS }
+enum StartState { IDLE, LIGHTS, GREEN, FINISHED }
+
+var mode: Mode = Mode.MENU
+var start_state: StartState = StartState.IDLE
+var total_laps: int = 5
+var player_car: Node3D
+var race_director: Node
+var elapsed_seconds := 0.0
+var paused := false
+
+func begin_race() -> void:
+	mode = Mode.RACE
+	start_state = StartState.LIGHTS
+	elapsed_seconds = 0.0
+	paused = false
+
+func finish_race() -> void:
+	mode = Mode.RESULTS
+	start_state = StartState.FINISHED
+
+func reset_to_menu() -> void:
+	mode = Mode.MENU
+	start_state = StartState.IDLE
+	paused = false
