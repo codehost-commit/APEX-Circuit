@@ -29,7 +29,7 @@ Open `project.godot` in the Godot **standard** editor with Forward+ and Jolt Phy
 
 The car now has layered front/rear wings, detailed suspension and axles, attached rain light, original sponsor liveries, and a shared physical steering wheel with live display, RPM LEDs, articulated gloves and rear-view cameras. The ghost uses the complete body and four rolling wheels.
 
-The HUD includes a measured acceleration circle, a single ring split into blue throttle, green brake and yellow G sectors, curved labels and a moving acceleration dot, top-left delta/sector timing and broadcast-style race-control messages. Driver names sit above competitors. Fonts and credits have been updated. The supplied white/red APEX logo is used throughout on a dark background.
+The HUD includes a measured acceleration circle, a single ring split into blue throttle, green brake and yellow G sectors, curved labels and a moving acceleration dot, top-left delta/sector timing and broadcast-style race-control messages. Driver names sit above competitors. Fonts and credits have been updated. The supplied white/red APEX logo is used throughout on a dark background; a responsive code-drawn version animates at launch and on every return to the menu.
 
 Continuous fences, clipped inner kerbs, painted DRS boundaries, breakable foam brake boards, collidable detailed buildings, corrected stands and varied spectators surround the circuit. Eighty spaced 3D trees use optimized CC0 Poly Haven assets. A continuous 3D mountain landscape, green PBR ground, photographic sky, moving sunlight, reflections and material-specific roughness replace the earlier simple scenery.
 

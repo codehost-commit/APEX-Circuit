@@ -12,9 +12,9 @@ This records the implementation against the supplied change list. See [VALIDATIO
 | Acceleration HUD | Reference-matched single annulus with three sectors, curved labels, blue throttle, green brake, yellow G fill, translucent centered car and orange trail dot; measured body-frame acceleration, current/peak G numbers and a 5 G dot range |
 | HUD cleanup | Redundant throttle/brake bars and LAT/LONG fields removed from lower instruments; delta and current sector moved into upper-left timing; announcements wrap in a race-control panel |
 | AI labels | Depth-tested billboard driver names above competitors |
-| Menu/settings/credits | Three included fonts, redesigned heading/tagline, removed original metadata footer, saved metric/imperial and mouse-look settings; Rahul Awasthi, Game Development Head; Pritam Avuthu, Marketing Head |
+| Menu/settings/credits | Responsive stroke-drawn APEX launch and menu animation, CIRCUIT fade-in, delayed menu-action reveal, three included fonts, redesigned tagline, removed original metadata footer, saved metric/imperial and mouse-look settings; Rahul Awasthi, Game Development Head; Pritam Avuthu, Marketing Head |
 | Input detection | Keyboard/mouse activity enables cursor-following cockpit look; controller activity recentres the camera |
-| Sponsors | User-supplied APEX logo adapted onto a dark background across menus, startup/icon, wheel display, cars and circuit; two generated fictional sponsor atlases; track-specific signs/gantry/garages and twelve unique car sponsor combinations, including car-only identities |
+| Sponsors | User-supplied APEX logo adapted onto a dark background for icon, credits, wheel display, cars and circuit; responsive vector animation at startup/menu; two generated fictional sponsor atlases; track-specific signs/gantry/garages and twelve unique car sponsor combinations, including car-only identities |
 | Text clipping/z-fighting | Logos use padded textured panels with physical separation; UI labels wrap and remain within their panels |
 | Fences | Closed offset polygons resolve sharp joins, then continuous resampling builds posts, rails, mesh wires and collisions, including the closing seam |
 | Kerbs | Width reduced from 7.84 m to 7.25 m; curvature caps the inner ribbon to prevent folded strips at tight bends |

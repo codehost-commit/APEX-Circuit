@@ -2,7 +2,7 @@
 
 `apex-circuit-dark.png` is a dark-background adaptation of the white/silver/red logo supplied in the conversation. The original attachment was visible in chat but was not mounted as a local PNG. One built-in image-edit call prepared this version, preserving the supplied identity while making its lettering readable. It is an image-assisted adaptation, not a claim of byte-for-byte identity with the original attachment.
 
-Used by the menu, credits, startup splash/project icon, shared steering-wheel display and every APEX sponsor panel on cars and circuit structures. UI textures preserve aspect ratio; 3D APEX panels use a 3:1 ratio. Other fictional sponsors keep their own identities.
+Used by credits, the project icon, shared steering-wheel display and every APEX sponsor panel on cars and circuit structures. The startup and menu marks are now drawn responsively by `ui/apex_logo_animation.gd`: APEX traces in letter order and CIRCUIT fades in afterward. The native static boot image is disabled, avoiding aspect-ratio stretching. UI textures preserve aspect ratio; 3D APEX panels use a 3:1 ratio. Other fictional sponsors keep their own identities.
 
 ## Final edit prompt
 

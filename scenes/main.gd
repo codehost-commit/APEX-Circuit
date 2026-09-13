@@ -22,6 +22,7 @@ var _frame_samples: Array[float] = []
 var _preview_driver: AIFormulaDriver
 var _sun: DirectionalLight3D
 var _sun_clock := 0.0
+var _launch_intro: CanvasLayer
 
 func _ready() -> void:
 	CircuitInput.install()
@@ -53,6 +54,8 @@ func _ready() -> void:
 	menu.time_trial_requested.connect(_start_time_trial)
 	menu.quit_requested.connect(func() -> void: get_tree().quit())
 	_return_to_menu()
+	if DisplayServer.get_name() != "headless":
+		_play_launch_intro()
 	add_to_group("graphics_settings")
 	apply_graphics_settings()
 	var practice := PracticeTools.new()
@@ -247,6 +250,36 @@ func _return_to_menu() -> void:
 		drivers[index].tactics_enabled = false
 		drivers[index].reset_session()
 	menu_cinematic.set_active(true)
+	menu.play_logo_intro()
+
+func _play_launch_intro() -> void:
+	_launch_intro = CanvasLayer.new()
+	_launch_intro.name = "LaunchLogoSequence"
+	_launch_intro.layer = 20
+	add_child(_launch_intro)
+	var curtain := ColorRect.new()
+	curtain.name = "ResponsiveLaunchCurtain"
+	curtain.color = Color("101820")
+	curtain.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	curtain.mouse_filter = Control.MOUSE_FILTER_STOP
+	_launch_intro.add_child(curtain)
+	var logo := ApexLogoAnimation.new()
+	logo.name = "AnimatedLaunchLogo"
+	logo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	logo.anchor_left = 0.07
+	logo.anchor_right = 0.93
+	logo.anchor_top = 0.24
+	logo.anchor_bottom = 0.72
+	curtain.add_child(logo)
+	logo.play(3.0)
+	await logo.finished
+	await get_tree().create_timer(0.28).timeout
+	var fade := create_tween()
+	fade.tween_property(curtain,"modulate:a",0.0,0.48)
+	await fade.finished
+	_launch_intro.queue_free()
+	_launch_intro = null
+	menu.play_logo_intro()
 
 func _physics_process(delta: float) -> void:
 	if GameState.mode == GameState.Mode.MENU:

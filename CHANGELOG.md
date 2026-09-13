@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Responsive animated identity
+
+- Replaced the oversized static engine splash with a responsive in-game launch sequence that draws A, P, E and the two-color X in order, then fades in CIRCUIT and transitions to the live menu.
+- Replaced the menu's flat logo texture with the same compact vector animation. It replays after launch and every return from Time Trial, qualifying, racing or results, while menu actions fade in after the mark completes.
+- Kept the supplied dark-backed raster identity for physical decals, the project icon, credits and the steering-wheel display.
+
 ### September car, circuit and broadcast overhaul
 
 - Matched the supplied circular HUD and low/wide brake-board references; integrated the supplied APEX logo on dark backgrounds throughout the game.

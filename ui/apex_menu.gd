@@ -8,9 +8,12 @@ signal quit_requested
 
 var _root: Control
 var _floating: VBoxContainer
+var _logo: ApexLogoAnimation
+var _menu_actions: VBoxContainer
 var _overlay: PanelContainer
 var _elapsed := 0.0
 var _live: Label
+var _animation_token := 0
 
 func _ready() -> void:
 	layer = 5
@@ -19,6 +22,7 @@ func _ready() -> void:
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
+	_root.resized.connect(_layout_menu)
 	var shade := ColorRect.new()
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -33,20 +37,27 @@ func _ready() -> void:
 	_floating.size.x = 505
 	_floating.add_theme_constant_override("separation", 15)
 	_root.add_child(_floating)
-	_floating.add_child(ApexStyle.brand_logo(Vector2(505,200)))
+	_logo = ApexLogoAnimation.new()
+	_logo.name = "AnimatedMenuLogo"
+	_logo.custom_minimum_size = Vector2(505,170)
+	_floating.add_child(_logo)
+	_menu_actions = VBoxContainer.new()
+	_menu_actions.name = "MenuActions"
+	_menu_actions.add_theme_constant_override("separation",15)
+	_floating.add_child(_menu_actions)
 	var tagline := ApexStyle.label("CHASE THE NEXT TENTH.", 30, ApexStyle.MUTED)
 	tagline.add_theme_font_override("font", ApexStyle.display_font())
-	_floating.add_child(tagline)
+	_menu_actions.add_child(tagline)
 	var gap := Control.new()
 	gap.custom_minimum_size.y = 35
-	_floating.add_child(gap)
+	_menu_actions.add_child(gap)
 	_add_button("01     TIME TRIAL", func() -> void: time_trial_requested.emit(), true)
 	_add_button("02     RACE WEEKEND", func() -> void: qualifying_requested.emit())
 	_add_button("03     QUICK RACE", func() -> void: race_requested.emit())
 	_add_button("04     SETTINGS & CONTROLS", _show_settings)
 	var bottom := HBoxContainer.new()
 	bottom.add_theme_constant_override("separation", 14)
-	_floating.add_child(bottom)
+	_menu_actions.add_child(bottom)
 	var credits := ApexStyle.button("CREDITS")
 	credits.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	credits.pressed.connect(_show_credits)
@@ -68,6 +79,8 @@ func _ready() -> void:
 	_overlay.add_theme_stylebox_override("panel", ApexStyle.panel(0.98))
 	_overlay.visible = false
 	_root.add_child(_overlay)
+	_logo.finish_immediately()
+	_layout_menu()
 
 func _process(delta: float) -> void:
 	if not visible:
@@ -78,10 +91,46 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("pause") and _overlay.visible:
 		_overlay.visible = false
 
+func _layout_menu() -> void:
+	if _root == null or _floating == null or _logo == null:
+		return
+	var viewport_size := _root.size
+	var side_margin := 32.0 if viewport_size.x < 760.0 else minf(94.0,viewport_size.x * 0.049)
+	var target_width := minf(505.0,maxf(280.0,viewport_size.x - side_margin * 2.0))
+	_floating.position.x = (viewport_size.x - target_width) * 0.5 if viewport_size.x < 760.0 else side_margin
+	_floating.position.y = clampf(viewport_size.y * 0.11,48.0,118.0)
+	_floating.size.x = target_width
+	_logo.custom_minimum_size = Vector2(target_width,target_width * 0.337)
+
 func _add_button(text: String, callback: Callable, primary := false) -> void:
 	var button := ApexStyle.button(text, primary)
 	button.pressed.connect(callback)
-	_floating.add_child(button)
+	_menu_actions.add_child(button)
+
+func play_logo_intro() -> void:
+	_animation_token += 1
+	var token := _animation_token
+	_overlay.visible = false
+	_menu_actions.modulate.a = 0.0
+	_set_menu_buttons_disabled(true)
+	_logo.play(1.85)
+	if DisplayServer.get_name() == "headless":
+		_logo.finish_immediately()
+		_menu_actions.modulate.a = 1.0
+		_set_menu_buttons_disabled(false)
+		return
+	await _logo.finished
+	if token != _animation_token or not visible:
+		return
+	var tween := create_tween()
+	tween.tween_property(_menu_actions,"modulate:a",1.0,0.32)
+	await tween.finished
+	if token == _animation_token:
+		_set_menu_buttons_disabled(false)
+
+func _set_menu_buttons_disabled(value: bool) -> void:
+	for button in _menu_actions.find_children("*","Button",true,false):
+		button.disabled = value
 
 func _clear_overlay() -> void:
 	for child in _overlay.get_children():
